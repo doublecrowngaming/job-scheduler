@@ -129,3 +129,45 @@ spec = do
                           JobState dirsrc (Just 105) (Just Error) (Just 105)
                         ]
                      }
+
+    describe "submitJob" $
+      context "for one-time jobs" $ do
+        let oneOff1 = Once 3 "foo"
+            oneOff2 = Once 7 "bar"
+
+        it "arranges for actions to be run once" $
+          execTestTimer 0 (
+            runScheduler [oneOff1, oneOff2] $
+              whenReady $ \src -> do
+                incrementExecutionCounter
+                observeSource src
+
+                return (Continue Ok)
+          ) `shouldBe` TestTimerState {
+                          clock = 7,
+                          executionCounter = 2,
+                          jobsSeen = ["foo", "bar"],
+                          sourceTimings = [3, 7],
+                          callbackTracker = []
+                       }
+
+        it "allows actions to be scheduled from whenReady" $
+          execTestTimer 0 (
+            runScheduler [oneOff1, oneOff2] $
+              whenReadyS $ \src -> do
+                lift incrementExecutionCounter
+                lift $ observeSource src
+
+                case src of
+                  "bar" -> submitJob (Once 9 "baz")
+                  _     -> return ()
+
+                return (Continue Ok)
+
+          ) `shouldBe` TestTimerState {
+                          clock = 9,
+                          executionCounter = 3,
+                          jobsSeen = ["foo", "bar", "baz"],
+                          sourceTimings = [3, 7, 9],
+                          callbackTracker = []
+                       }

@@ -13,7 +13,10 @@ module Control.Scheduler (
   JobState(..),
   ScheduledJob(..),
   runScheduler,
+  submitJob,
+  lift,
   whenReady,
+  whenReadyS,
   onStateChange
 ) where
 
@@ -30,7 +33,10 @@ import           Data.Time.Clock.POSIX     (POSIXTime, getPOSIXTime)
 data Status = Ok | Error deriving (Eq, Show)
 data ExecutionResult = Continue Status | Halt deriving (Eq, Show)
 
-data ScheduledJob jobtype = Periodic { runInterval :: Integer, jobdata :: jobtype } deriving (Eq, Show, Ord)
+data ScheduledJob jobtype =
+  Periodic { runInterval :: Integer, jobdata :: jobtype }
+  | Once { atTime :: POSIXTime, jobdata :: jobtype }
+  deriving (Eq, Show, Ord)
 
 data JobState jobtype = JobState {
   jobDefinition :: !(ScheduledJob jobtype),
@@ -58,6 +64,7 @@ submitJob job = do
 
   let startTime = case job of
                     Periodic{}   -> now
+                    Once{atTime} -> atTime
 
   modify $ \originalState@SchedulerState{jobQueue} ->
     originalState {
@@ -79,7 +86,11 @@ runScheduler jobs block = do
       offsetPeriod        = fromIntegral beatPeriod,
       stateChangeCallback = Nothing
     }
-    beatPeriod = foldl lcm 1 $ map runInterval jobs
+
+    beatPeriod = foldl lcm 1 $ map period jobs
+      where
+        period Periodic{runInterval} = runInterval
+        period Once{..}              = 1
 
     wholeSeconds :: POSIXTime -> POSIXTime
     wholeSeconds = fromIntegral . (floor :: POSIXTime -> Integer)
@@ -89,18 +100,21 @@ pullNext = do
   originalState@SchedulerState{..} <- get
   now <- currentTime
 
-  let (wakeupTime, source) = PQ.findMin jobQueue
-  let remainingJobs = PQ.deleteMin jobQueue
+  case PQ.getMin jobQueue of
+    Nothing -> return Nothing
+    Just (wakeupTime, source) -> do
+      let remainingJobs = PQ.deleteMin jobQueue
 
-  if now >= wakeupTime
-  then do
-    put $ originalState { jobQueue = remainingJobs }
-    return $ Just source { lastWakeup = Just now }
-  else
-    return Nothing
+      if now >= wakeupTime
+      then do
+        put $ originalState { jobQueue = remainingJobs }
+        return $ Just source { lastWakeup = Just now }
+      else
+        return Nothing
 
 reschedule :: (Timer m) => JobState jobtype -> Status -> Scheduler jobtype m ()
-reschedule jobState status = do
+reschedule JobState{jobDefinition = Once{..}} _ = return ()
+reschedule jobState@JobState{jobDefinition = Periodic{..}} status = do
   now <- currentTime
   originalState@SchedulerState{stateChangeCallback, jobQueue, offsetReference} <- get
 
@@ -115,32 +129,35 @@ reschedule jobState status = do
     Just action -> lift $ action newJobState
 
   where
-    timeIncrement = fromIntegral (runInterval . jobDefinition $ jobState)
+    timeIncrement = fromIntegral runInterval
 
-sleep :: (Timer m) => Scheduler jobtype m ()
-sleep = do
+sleep :: (Timer m) => Scheduler jobtype m () -> Scheduler jobtype m ()
+sleep nextAction = do
   oldState@SchedulerState{..} <- get
-
-  let (wakeupTime, _) = PQ.findMin jobQueue
-
   now <- currentTime
 
-  when (now > offsetReference + offsetPeriod) $
-    put $ oldState { offsetReference = soonestAfter now offsetReference offsetPeriod }
+  case PQ.getMin jobQueue of
+    Just (wakeupTime, _) -> do
+      when (now > offsetReference + offsetPeriod) $
+        put $ oldState { offsetReference = soonestAfter now offsetReference offsetPeriod }
 
-  sleepUntil wakeupTime
+      sleepUntil wakeupTime
+      nextAction
+    Nothing -> return ()
 
 whenReady :: (Timer m) => (jobtype -> m ExecutionResult) -> Scheduler jobtype m ()
-whenReady action =
+whenReady action = whenReadyS (lift . action)
+
+whenReadyS :: (Timer m) => (jobtype -> Scheduler jobtype m ExecutionResult) -> Scheduler jobtype m ()
+whenReadyS action =
   pullNext >>= \case
-    Nothing -> do
-      sleep
-      whenReady action
+    Nothing ->
+      sleep $ whenReadyS action
     Just readyJob ->
-      lift (action $ jobdata . jobDefinition $ readyJob) >>= \case
+      action (jobdata . jobDefinition $ readyJob) >>= \case
         Continue result -> do
           reschedule readyJob result
-          whenReady action
+          whenReadyS action
         Halt       -> return ()
 
 onStateChange :: (Timer m) => (JobState jobtype -> m ()) -> Scheduler jobtype m ()
