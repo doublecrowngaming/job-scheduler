@@ -25,6 +25,8 @@ library
                      , transformers
                      , containers
                      , mtl
+                     , monad-logger
+                     , exceptions
 
 test-suite spec
   default-language:    Haskell2010

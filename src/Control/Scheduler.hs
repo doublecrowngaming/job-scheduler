@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -5,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Control.Scheduler (
   Status(..),
@@ -14,6 +16,7 @@ module Control.Scheduler (
   ScheduledJob(..),
   runScheduler,
   submitJob,
+  clearJobs,
   lift,
   whenReady,
   whenReadyS,
@@ -22,7 +25,10 @@ module Control.Scheduler (
 
 import           Control.Concurrent        (threadDelay)
 import           Control.Monad             (when)
+import           Control.Monad.Catch       (MonadCatch (..), MonadMask (..),
+                                            MonadThrow (..))
 import           Control.Monad.IO.Class    (MonadIO (..))
+import           Control.Monad.Logger      (MonadLogger (..))
 import           Control.Monad.State       (MonadState, StateT, evalStateT, get,
                                             lift, modify, put)
 import           Control.Monad.Trans.Class (MonadTrans (..))
@@ -36,7 +42,7 @@ data ExecutionResult = Continue Status | Halt deriving (Eq, Show)
 data ScheduledJob jobtype =
   Periodic { runInterval :: Integer, jobdata :: jobtype }
   | Once { atTime :: POSIXTime, jobdata :: jobtype }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show)
 
 data JobState jobtype = JobState {
   jobDefinition :: !(ScheduledJob jobtype),
@@ -53,7 +59,8 @@ data SchedulerState jobtype m = SchedulerState {
 }
 
 newtype Scheduler jobtype m a = Scheduler { unScheduler :: StateT (SchedulerState jobtype m) m a }
-  deriving (Functor, Applicative, Monad, MonadState (SchedulerState jobtype m))
+  deriving (Functor, Applicative, Monad, MonadState (SchedulerState jobtype m),
+    MonadThrow, MonadCatch, MonadMask, MonadLogger, MonadIO)
 
 instance MonadTrans (Scheduler jobtype) where
   lift = Scheduler . lift
@@ -71,7 +78,10 @@ submitJob job = do
       jobQueue = PQ.insert startTime (JobState job Nothing Nothing Nothing) jobQueue
     }
 
-runScheduler :: (Ord jobtype, Timer m) => [ScheduledJob jobtype] -> Scheduler jobtype m a -> m a
+clearJobs :: (Timer m) => Scheduler jobtype m ()
+clearJobs = modify $ \originalState -> originalState { jobQueue = PQ.empty }
+
+runScheduler :: (Timer m) => [ScheduledJob jobtype] -> Scheduler jobtype m a -> m a
 runScheduler jobs block = do
   now <- wholeSeconds <$> currentTime
 
@@ -178,13 +188,10 @@ class (Monad m) => Timer m where
     now <- currentTime
     timerSleep (wakeupTime - now)
 
-instance (Timer m) => Timer (Scheduler jobtype m) where
-  currentTime = lift currentTime
-  timerSleep = lift . timerSleep
-
 instance Timer IO where
   currentTime = getPOSIXTime
   timerSleep interval = threadDelay (round (1000 * 1000 * interval))
 
-instance MonadIO (Scheduler jobtype IO) where
-  liftIO = lift
+instance (MonadTrans t, Timer m, (Monad (t m))) => Timer (t m) where
+  currentTime = lift currentTime
+  timerSleep = lift . timerSleep
