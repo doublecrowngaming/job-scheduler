@@ -14,6 +14,7 @@ module Control.Scheduler (
   Timer(..),
   JobState(..),
   ScheduledJob(..),
+  Scheduler,
   runScheduler,
   submitJob,
   clearJobs,
