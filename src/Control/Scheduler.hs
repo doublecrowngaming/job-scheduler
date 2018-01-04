@@ -41,9 +41,11 @@ data Status = Ok | Error deriving (Eq, Show)
 data ExecutionResult = Continue Status | Halt deriving (Eq, Show)
 
 data ScheduledJob jobtype =
-  Periodic { runInterval :: Integer, jobdata :: jobtype }
-  | Once { atTime :: POSIXTime, jobdata :: jobtype }
-  | Immediately { jobdata :: jobtype }
+  Periodic        { runInterval :: Integer, jobdata :: jobtype }
+  | PeriodicAfter { delay :: Double, runInterval :: Integer, jobdata :: jobtype }
+  | Once          { atTime :: POSIXTime, jobdata :: jobtype }
+  | Immediately   { jobdata :: jobtype }
+  | After         { delay :: Double, jobdata :: jobtype }
 
   deriving (Eq, Show)
 
@@ -73,9 +75,11 @@ submitJob job = do
   now <- currentTime
 
   let startTime = case job of
-                    Periodic{}    -> now
-                    Once{atTime}  -> atTime
-                    Immediately{} -> now
+                    Periodic{}           -> now
+                    PeriodicAfter{delay} -> now + realToFrac delay
+                    Once{atTime}         -> atTime
+                    Immediately{}        -> now
+                    After{delay}         -> now + realToFrac delay
 
   modify $ \originalState@SchedulerState{jobQueue} ->
     originalState {
@@ -103,9 +107,11 @@ runScheduler jobs block = do
 
     beatPeriod = foldl lcm 1 $ map period jobs
       where
-        period Periodic{runInterval} = runInterval
-        period Once{}                = 1
-        period Immediately{}         = 1
+        period Periodic{runInterval}      = runInterval
+        period PeriodicAfter{runInterval} = runInterval
+        period Once{}                     = 1
+        period Immediately{}              = 1
+        period After{}                    = 1
 
     wholeSeconds :: POSIXTime -> POSIXTime
     wholeSeconds = fromIntegral . (floor :: POSIXTime -> Integer)
@@ -128,24 +134,30 @@ pullNext = do
         return Nothing
 
 reschedule :: (Timer m) => JobState jobtype -> Status -> Scheduler jobtype m ()
-reschedule JobState{jobDefinition = Immediately{}} _ = return ()
-reschedule JobState{jobDefinition = Once{}} _ = return ()
-reschedule jobState@JobState{jobDefinition = Periodic{..}} status = do
-  now <- currentTime
-  originalState@SchedulerState{stateChangeCallback, jobQueue, offsetReference} <- get
-
-  let newJobState = jobState { lastCompleted = Just now, lastStatus = Just status }
-      lastTime = fromMaybe now (lastWakeup jobState)
-      nextTime = soonestAfter lastTime offsetReference timeIncrement
-
-  put $ originalState { jobQueue = PQ.insert nextTime newJobState jobQueue }
-
-  case stateChangeCallback of
-    Nothing     -> return ()
-    Just action -> lift $ action newJobState
-
+reschedule jobState@JobState{jobDefinition} status' =
+  case jobDefinition of
+    Immediately{}              -> return ()
+    Once{}                     -> return ()
+    After{}                    -> return ()
+    Periodic{runInterval}      -> reschedulePeriodic runInterval 0 status'
+    PeriodicAfter{runInterval, delay} -> reschedulePeriodic runInterval delay status'
   where
-    timeIncrement = fromIntegral runInterval
+    reschedulePeriodic runInterval offset status = do
+      now <- currentTime
+      originalState@SchedulerState{stateChangeCallback, jobQueue, offsetReference} <- get
+
+      let newJobState = jobState { lastCompleted = Just now, lastStatus = Just status }
+          lastTime = fromMaybe now (lastWakeup jobState)
+          nextTime = soonestAfter lastTime offsetReference timeIncrement + realToFrac offset
+
+      put $ originalState { jobQueue = PQ.insert nextTime newJobState jobQueue }
+
+      case stateChangeCallback of
+        Nothing     -> return ()
+        Just action -> lift $ action newJobState
+
+      where
+        timeIncrement = fromIntegral runInterval
 
 sleep :: (Timer m) => Scheduler jobtype m () -> Scheduler jobtype m ()
 sleep nextAction = do
