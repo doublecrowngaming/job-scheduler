@@ -65,27 +65,28 @@ spec = do
     describe "whenReady" $ do
       let bookkeep src = incrementExecutionCounter >> observeSource src
       let succeed = return (Continue Ok)
-      let dirsrc = Periodic 5 "foo"
+      let dirsrc1 = Periodic 5 "foo"
+          dirsrc2 = PeriodicAfter 3 5 "bar"
 
       it "runs its actions periodically" $
         execTestTimer 100 (
-          runScheduler [dirsrc] $
+          runScheduler [dirsrc1, dirsrc2] $
             whenReady $ \src -> do
               counter <- getExecutionCounter
               case counter of
-                5 -> return Halt
-                _ -> bookkeep src >> succeed
+                10 -> return Halt
+                _  -> bookkeep src >> succeed
         ) `shouldBe` TestTimerState {
                         clock = 125,
-                        executionCounter = 5,
-                        jobsSeen = replicate 5 "foo",
-                        sourceTimings = [100, 105, 110, 115, 120],
+                        executionCounter = 10,
+                        jobsSeen = ["foo", "bar", "foo", "bar", "foo", "bar", "foo", "bar", "foo", "bar"],
+                        sourceTimings = [100, 103, 105, 108, 110, 113, 115, 118, 120, 123],
                         callbackTracker = []
                      }
 
       it "executes pending actions as soon as possible after a long-running action completes" $
         execTestTimer 100 (
-          runScheduler [dirsrc] $
+          runScheduler [dirsrc1] $
             whenReady $ \src -> do
               counter <- getExecutionCounter
               case counter of
@@ -132,22 +133,24 @@ spec = do
 
     describe "submitJob" $
       context "for one-time jobs" $ do
-        let oneOff1 = Once 3 "foo"
-            oneOff2 = Once 7 "bar"
+        let oneOff1 = Once 3      "foo"
+            oneOff2 = Once 7      "bar"
+            oneOff3 = Immediately "baz"
+            oneOff4 = After 33    "glorch"
 
         it "arranges for actions to be run once" $
-          execTestTimer 0 (
-            runScheduler [oneOff1, oneOff2] $
+          execTestTimer 2 (
+            runScheduler [oneOff1, oneOff2, oneOff3, oneOff4] $
               whenReady $ \src -> do
                 incrementExecutionCounter
                 observeSource src
 
                 return (Continue Ok)
           ) `shouldBe` TestTimerState {
-                          clock = 7,
-                          executionCounter = 2,
-                          jobsSeen = ["foo", "bar"],
-                          sourceTimings = [3, 7],
+                          clock = 35,
+                          executionCounter = 4,
+                          jobsSeen = ["baz", "foo", "bar", "glorch"],
+                          sourceTimings = [2, 3, 7, 35],
                           callbackTracker = []
                        }
 
