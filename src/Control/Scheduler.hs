@@ -43,6 +43,8 @@ data ExecutionResult = Continue Status | Halt deriving (Eq, Show)
 data ScheduledJob jobtype =
   Periodic { runInterval :: Integer, jobdata :: jobtype }
   | Once { atTime :: POSIXTime, jobdata :: jobtype }
+  | Immediately { jobdata :: jobtype }
+
   deriving (Eq, Show)
 
 data JobState jobtype = JobState {
@@ -71,8 +73,9 @@ submitJob job = do
   now <- currentTime
 
   let startTime = case job of
-                    Periodic{}   -> now
-                    Once{atTime} -> atTime
+                    Periodic{}    -> now
+                    Once{atTime}  -> atTime
+                    Immediately{} -> now
 
   modify $ \originalState@SchedulerState{jobQueue} ->
     originalState {
@@ -101,7 +104,8 @@ runScheduler jobs block = do
     beatPeriod = foldl lcm 1 $ map period jobs
       where
         period Periodic{runInterval} = runInterval
-        period Once{..}              = 1
+        period Once{}                = 1
+        period Immediately{}         = 1
 
     wholeSeconds :: POSIXTime -> POSIXTime
     wholeSeconds = fromIntegral . (floor :: POSIXTime -> Integer)
@@ -124,7 +128,8 @@ pullNext = do
         return Nothing
 
 reschedule :: (Timer m) => JobState jobtype -> Status -> Scheduler jobtype m ()
-reschedule JobState{jobDefinition = Once{..}} _ = return ()
+reschedule JobState{jobDefinition = Immediately{}} _ = return ()
+reschedule JobState{jobDefinition = Once{}} _ = return ()
 reschedule jobState@JobState{jobDefinition = Periodic{..}} status = do
   now <- currentTime
   originalState@SchedulerState{stateChangeCallback, jobQueue, offsetReference} <- get
