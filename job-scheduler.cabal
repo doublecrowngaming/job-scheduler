@@ -1,5 +1,5 @@
 name:                job-scheduler
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Simple in-memory job scheduling
 description:         Simple in-memory job scheduling
 homepage:            https://github.com/binarysunrise-io/job-scheduler
@@ -19,6 +19,7 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Control.Scheduler
+                     , Control.Scheduler.Time
   build-depends:       base >= 4.7 && < 5
                      , pqueue
                      , time
@@ -35,6 +36,7 @@ test-suite spec
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       Control.SchedulerSpec
+                     , Control.Scheduler.TimeSpec
   build-depends:       base
                      , job-scheduler
                      , hspec

@@ -15,6 +15,8 @@ module Control.Scheduler (
   JobState(..),
   ScheduledJob(..),
   Scheduler,
+  Delay(..),
+  Interval(..),
   runScheduler,
   submitJob,
   clearJobs,
@@ -25,7 +27,6 @@ module Control.Scheduler (
 ) where
 
 import           Control.Concurrent        (threadDelay)
-import           Control.Monad             (when)
 import           Control.Monad.Catch       (MonadCatch (..), MonadMask (..),
                                             MonadThrow (..))
 import           Control.Monad.IO.Class    (MonadIO (..))
@@ -33,33 +34,36 @@ import           Control.Monad.Logger      (MonadLogger (..))
 import           Control.Monad.State       (MonadState, StateT, evalStateT, get,
                                             lift, modify, put)
 import           Control.Monad.Trans.Class (MonadTrans (..))
+import           Control.Scheduler.Time    (Delay (..), Interval (..),
+                                            ReferenceTime (..), addDelay,
+                                            diffTime, next)
 import           Data.Maybe                (fromMaybe)
 import qualified Data.PQueue.Prio.Min      as PQ
-import           Data.Time.Clock.POSIX     (POSIXTime, getPOSIXTime)
+import           Data.Time.Clock           (UTCTime, getCurrentTime)
+
 
 data Status = Ok | Error deriving (Eq, Show)
 data ExecutionResult = Continue Status | Halt deriving (Eq, Show)
 
 data ScheduledJob jobtype =
-  Periodic        { runInterval :: Integer, jobdata :: jobtype }
-  | PeriodicAfter { delay :: Double, runInterval :: Integer, jobdata :: jobtype }
-  | Once          { atTime :: POSIXTime, jobdata :: jobtype }
+  Periodic        { runInterval :: Interval, jobdata :: jobtype }
+  | PeriodicAfter { delay :: Delay, runInterval :: Interval, jobdata :: jobtype }
+  | Once          { atTime :: UTCTime, jobdata :: jobtype }
   | Immediately   { jobdata :: jobtype }
-  | After         { delay :: Double, jobdata :: jobtype }
+  | After         { delay :: Delay, jobdata :: jobtype }
 
   deriving (Eq, Show)
 
 data JobState jobtype = JobState {
   jobDefinition :: !(ScheduledJob jobtype),
-  lastCompleted :: !(Maybe POSIXTime),
+  lastCompleted :: !(Maybe UTCTime),
   lastStatus    :: !(Maybe Status),
-  lastWakeup    :: !(Maybe POSIXTime)
+  lastWakeup    :: !(Maybe UTCTime),
+  referenceTime :: !ReferenceTime
 } deriving (Eq, Show)
 
 data SchedulerState jobtype m = SchedulerState {
-  jobQueue            :: !(PQ.MinPQueue POSIXTime (JobState jobtype)),
-  offsetReference     :: !POSIXTime,
-  offsetPeriod        :: !POSIXTime,
+  jobQueue            :: !(PQ.MinPQueue UTCTime (JobState jobtype)),
   stateChangeCallback :: !(Maybe (JobState jobtype -> m ()))
 }
 
@@ -76,45 +80,32 @@ submitJob job = do
 
   let startTime = case job of
                     Periodic{}           -> now
-                    PeriodicAfter{delay} -> now + realToFrac delay
+                    PeriodicAfter{delay} -> now `addDelay` delay
                     Once{atTime}         -> atTime
                     Immediately{}        -> now
-                    After{delay}         -> now + realToFrac delay
+                    After{delay}         -> now `addDelay` delay
+      referenceTime = ReferenceTime startTime
 
   modify $ \originalState@SchedulerState{jobQueue} ->
     originalState {
-      jobQueue = PQ.insert startTime (JobState job Nothing Nothing Nothing) jobQueue
+      jobQueue = PQ.insert startTime (JobState job Nothing Nothing Nothing referenceTime) jobQueue
     }
 
 clearJobs :: (Timer m) => Scheduler jobtype m ()
 clearJobs = modify $ \originalState -> originalState { jobQueue = PQ.empty }
 
 runScheduler :: (Timer m) => [ScheduledJob jobtype] -> Scheduler jobtype m a -> m a
-runScheduler jobs block = do
-  now <- wholeSeconds <$> currentTime
+runScheduler jobs block =
 
-  evalStateT (unScheduler actions) (initialState now)
+  evalStateT (unScheduler actions) initialState
 
   where
     actions = mapM_ submitJob jobs >> block
 
-    initialState start = SchedulerState {
+    initialState = SchedulerState {
       jobQueue            = PQ.empty,
-      offsetReference     = start,
-      offsetPeriod        = fromIntegral beatPeriod,
       stateChangeCallback = Nothing
     }
-
-    beatPeriod = foldl lcm 1 $ map period jobs
-      where
-        period Periodic{runInterval}      = runInterval
-        period PeriodicAfter{runInterval} = runInterval
-        period Once{}                     = 1
-        period Immediately{}              = 1
-        period After{}                    = 1
-
-    wholeSeconds :: POSIXTime -> POSIXTime
-    wholeSeconds = fromIntegral . (floor :: POSIXTime -> Integer)
 
 pullNext :: (Timer m) => Scheduler jobtype m (Maybe (JobState jobtype))
 pullNext = do
@@ -134,21 +125,21 @@ pullNext = do
         return Nothing
 
 reschedule :: (Timer m) => JobState jobtype -> Status -> Scheduler jobtype m ()
-reschedule jobState@JobState{jobDefinition} status' =
+reschedule jobState@JobState{jobDefinition, referenceTime} status' =
   case jobDefinition of
     Immediately{}              -> return ()
     Once{}                     -> return ()
     After{}                    -> return ()
-    Periodic{runInterval}      -> reschedulePeriodic runInterval 0 status'
-    PeriodicAfter{runInterval, delay} -> reschedulePeriodic runInterval delay status'
+    Periodic{runInterval}      -> reschedulePeriodic runInterval status'
+    PeriodicAfter{runInterval} -> reschedulePeriodic runInterval status'
   where
-    reschedulePeriodic runInterval offset status = do
+    reschedulePeriodic runInterval status = do
       now <- currentTime
-      originalState@SchedulerState{stateChangeCallback, jobQueue, offsetReference} <- get
+      originalState@SchedulerState{stateChangeCallback, jobQueue} <- get
 
       let newJobState = jobState { lastCompleted = Just now, lastStatus = Just status }
           lastTime = fromMaybe now (lastWakeup jobState)
-          nextTime = soonestAfter lastTime offsetReference timeIncrement + realToFrac offset
+          nextTime = next referenceTime runInterval lastTime
 
       put $ originalState { jobQueue = PQ.insert nextTime newJobState jobQueue }
 
@@ -156,19 +147,13 @@ reschedule jobState@JobState{jobDefinition} status' =
         Nothing     -> return ()
         Just action -> lift $ action newJobState
 
-      where
-        timeIncrement = fromIntegral runInterval
 
 sleep :: (Timer m) => Scheduler jobtype m () -> Scheduler jobtype m ()
 sleep nextAction = do
-  oldState@SchedulerState{..} <- get
-  now <- currentTime
+  SchedulerState{..} <- get
 
   case PQ.getMin jobQueue of
     Just (wakeupTime, _) -> do
-      when (now > offsetReference + offsetPeriod) $
-        put $ oldState { offsetReference = soonestAfter now offsetReference offsetPeriod }
-
       sleepUntil wakeupTime
       nextAction
     Nothing -> return ()
@@ -191,24 +176,24 @@ whenReadyS action =
 onStateChange :: (Timer m) => (JobState jobtype -> m ()) -> Scheduler jobtype m ()
 onStateChange action = modify $ \state -> state { stateChangeCallback = Just action }
 
-soonestAfter :: POSIXTime -> POSIXTime -> POSIXTime -> POSIXTime
-soonestAfter now baseTime increment =
-  head $
-    filter (> now) $
-      iterate (+ increment) baseTime
+-- soonestAfter :: UTCTime -> UTCTime -> Interval -> UTCTime
+-- soonestAfter now baseTime increment =
+--   head $
+--     filter (> now) $
+--       iterate (`addInterval` increment) baseTime
 
 class (Monad m) => Timer m where
-  currentTime :: m POSIXTime
-  timerSleep :: POSIXTime -> m ()
+  currentTime :: m UTCTime
+  timerSleep :: Delay -> m ()
 
-  sleepUntil :: POSIXTime -> m ()
+  sleepUntil :: UTCTime -> m ()
   sleepUntil wakeupTime = do
     now <- currentTime
-    timerSleep (wakeupTime - now)
+    timerSleep (wakeupTime `diffTime` now)
 
 instance Timer IO where
-  currentTime = getPOSIXTime
-  timerSleep interval = threadDelay (round (1000 * 1000 * interval))
+  currentTime = getCurrentTime
+  timerSleep (Delay interval) = threadDelay (1000 * 1000 * round interval)
 
 instance (MonadTrans t, Timer m, (Monad (t m))) => Timer (t m) where
   currentTime = lift currentTime

@@ -4,19 +4,21 @@
 
 module Control.SchedulerSpec (spec) where
 
-import           Control.Monad.State   (MonadState, State, execState, gets,
-                                        modify)
+import           Control.Monad.State    (MonadState, State, execState, gets,
+                                         modify)
 import           Control.Scheduler
-import           Data.Time.Clock.POSIX (POSIXTime)
+import           Control.Scheduler.Time
+import           Data.Time.Clock        (NominalDiffTime, UTCTime)
+import           Data.Time.Clock.POSIX  (posixSecondsToUTCTime)
 
 import           Test.Hspec
 import           Test.QuickCheck
 
 data TestTimerState jobtype = TestTimerState {
-  clock            :: !POSIXTime,
+  clock            :: !UTCTime,
   executionCounter :: !Int,
   jobsSeen         :: ![jobtype],
-  sourceTimings    :: ![POSIXTime],
+  sourceTimings    :: ![UTCTime],
   callbackTracker  :: ![JobState jobtype]
 } deriving (Eq, Show)
 
@@ -25,7 +27,7 @@ newtype TestTimer jobtype a = TestTimer { unTestTimer :: State (TestTimerState j
 
 instance Timer (TestTimer jobtype) where
   currentTime = gets clock
-  timerSleep interval = modify $ \state -> state { clock = clock state + interval }
+  timerSleep delay' = modify $ \state -> state { clock = clock state `addDelay` delay' }
 
 incrementExecutionCounter :: TestTimer jobtype ()
 incrementExecutionCounter = modify $ \state -> state { executionCounter = executionCounter state + 1 }
@@ -46,11 +48,14 @@ observeSource datasource = modify $ \state ->
     sourceTimings = sourceTimings state ++ [clock state]
   }
 
-execTestTimer :: POSIXTime -> TestTimer jobtype a -> TestTimerState jobtype
+execTestTimer :: UTCTime -> TestTimer jobtype a -> TestTimerState jobtype
 execTestTimer initTime actions = execState (unTestTimer actions) (TestTimerState initTime 0 [] [] [])
 
-instance Arbitrary POSIXTime where
-  arbitrary = fromRational <$> arbitrary
+instance Arbitrary UTCTime where
+  arbitrary = posixSecondsToUTCTime . (realToFrac :: Double -> NominalDiffTime) <$> arbitrary
+
+utc :: Integer -> UTCTime
+utc = posixSecondsToUTCTime . fromInteger
 
 spec :: Spec
 spec = do
@@ -66,10 +71,41 @@ spec = do
       let bookkeep src = incrementExecutionCounter >> observeSource src
       let succeed = return (Continue Ok)
       let dirsrc1 = Periodic 5 "foo"
-          dirsrc2 = PeriodicAfter 3 5 "bar"
+          dirsrc2 = PeriodicAfter 17 4 "bar"
 
-      it "runs its actions periodically" $
-        execTestTimer 100 (
+      it "runs Periodic jobs" $
+        execTestTimer (utc 100) (
+          runScheduler [dirsrc1] $
+            whenReady $ \src -> do
+              counter <- getExecutionCounter
+              case counter of
+                10 -> return Halt
+                _  -> bookkeep src >> succeed
+        ) `shouldBe` TestTimerState {
+                        clock = utc 150,
+                        executionCounter = 10,
+                        jobsSeen = ["foo", "foo", "foo", "foo", "foo", "foo", "foo", "foo", "foo", "foo"],
+                        sourceTimings = map utc [100, 105, 110, 115, 120, 125, 130, 135, 140, 145],
+                        callbackTracker = []
+                     }
+      it "runs PeriodicAfter jobs" $
+        execTestTimer (utc 100) (
+          runScheduler [dirsrc2] $
+            whenReady $ \src -> do
+              counter <- getExecutionCounter
+              case counter of
+                10 -> return Halt
+                _  -> bookkeep src >> succeed
+        ) `shouldBe` TestTimerState {
+                        clock = utc 157,
+                        executionCounter = 10,
+                        jobsSeen = ["bar", "bar", "bar", "bar", "bar", "bar", "bar", "bar", "bar", "bar"],
+                        sourceTimings = map utc [117, 121, 125, 129, 133, 137, 141, 145, 149, 153],
+                        callbackTracker = []
+                    }
+
+      it "runs mixed Periodic and PeriodicAfter jobs" $
+        execTestTimer (utc 100) (
           runScheduler [dirsrc1, dirsrc2] $
             whenReady $ \src -> do
               counter <- getExecutionCounter
@@ -77,15 +113,14 @@ spec = do
                 10 -> return Halt
                 _  -> bookkeep src >> succeed
         ) `shouldBe` TestTimerState {
-                        clock = 125,
+                        clock = utc 130,
                         executionCounter = 10,
-                        jobsSeen = ["foo", "bar", "foo", "bar", "foo", "bar", "foo", "bar", "foo", "bar"],
-                        sourceTimings = [100, 103, 105, 108, 110, 113, 115, 118, 120, 123],
+                        jobsSeen = ["foo", "foo", "foo", "foo", "bar", "foo", "bar", "bar", "foo", "bar"],
+                        sourceTimings = map utc [100, 105, 110, 115, 117, 120, 121, 125, 125, 129],
                         callbackTracker = []
-                     }
-
+                      }
       it "executes pending actions as soon as possible after a long-running action completes" $
-        execTestTimer 100 (
+        execTestTimer (utc 100) (
           runScheduler [dirsrc1] $
             whenReady $ \src -> do
               counter <- getExecutionCounter
@@ -94,10 +129,10 @@ spec = do
                 1 -> bookkeep src >> timerSleep 21 >> succeed
                 _ -> bookkeep src >> succeed
         ) `shouldBe` TestTimerState {
-                        clock = 135,
+                        clock = utc 135,
                         executionCounter = 4,
                         jobsSeen = replicate 4 "foo",
-                        sourceTimings = [
+                        sourceTimings = map utc [
                           100,
                           105,
                           126,
@@ -110,7 +145,7 @@ spec = do
       let dirsrc = Periodic 5 "foo"
 
       it "registers a callback that is called when an action completes" $
-        execTestTimer 100 (
+        execTestTimer (utc 100) (
           runScheduler [dirsrc] $ do
             onStateChange logCallbackOutput
             whenReady $ \_ -> do
@@ -121,25 +156,25 @@ spec = do
                 0 -> incrementExecutionCounter >> return (Continue Ok)
                 _ -> error "can't happen"
         ) `shouldBe` TestTimerState {
-                        clock = 110,
+                        clock = utc 110,
                         executionCounter = 2,
                         jobsSeen = [],
                         sourceTimings = [],
                         callbackTracker = [
-                          JobState dirsrc (Just 100) (Just Ok) (Just 100),
-                          JobState dirsrc (Just 105) (Just Error) (Just 105)
+                          JobState dirsrc (Just $ utc 100) (Just Ok)    (Just $ utc 100) (ReferenceTime $ utc 100),
+                          JobState dirsrc (Just $ utc 105) (Just Error) (Just $ utc 105) (ReferenceTime $ utc 100)
                         ]
                      }
 
     describe "submitJob" $
       context "for one-time jobs" $ do
-        let oneOff1 = Once 3      "foo"
-            oneOff2 = Once 7      "bar"
-            oneOff3 = Immediately "baz"
-            oneOff4 = After 33    "glorch"
+        let oneOff1 = Once (utc 3) "foo"
+            oneOff2 = Once (utc 7) "bar"
+            oneOff3 = Immediately  "baz"
+            oneOff4 = After 33     "glorch"
 
         it "arranges for actions to be run once" $
-          execTestTimer 2 (
+          execTestTimer (utc 2) (
             runScheduler [oneOff1, oneOff2, oneOff3, oneOff4] $
               whenReady $ \src -> do
                 incrementExecutionCounter
@@ -147,30 +182,30 @@ spec = do
 
                 return (Continue Ok)
           ) `shouldBe` TestTimerState {
-                          clock = 35,
+                          clock = utc 35,
                           executionCounter = 4,
                           jobsSeen = ["baz", "foo", "bar", "glorch"],
-                          sourceTimings = [2, 3, 7, 35],
+                          sourceTimings = map utc [2, 3, 7, 35],
                           callbackTracker = []
                        }
 
         it "allows actions to be scheduled from whenReady" $
-          execTestTimer 0 (
+          execTestTimer (utc 0) (
             runScheduler [oneOff1, oneOff2] $
               whenReadyS $ \src -> do
                 lift incrementExecutionCounter
                 lift $ observeSource src
 
                 case src of
-                  "bar" -> submitJob (Once 9 "baz")
+                  "bar" -> submitJob (Once (utc 9) "baz")
                   _     -> return ()
 
                 return (Continue Ok)
 
           ) `shouldBe` TestTimerState {
-                          clock = 9,
+                          clock = utc 9,
                           executionCounter = 3,
                           jobsSeen = ["foo", "bar", "baz"],
-                          sourceTimings = [3, 7, 9],
+                          sourceTimings = map utc [3, 7, 9],
                           callbackTracker = []
                        }
