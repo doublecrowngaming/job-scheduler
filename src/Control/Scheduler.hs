@@ -14,11 +14,13 @@ module Control.Scheduler (
   Timer(..),
   JobState(..),
   ScheduledJob(..),
+  ScheduledJobMatcher(..),
   Scheduler,
   Delay(..),
   Interval(..),
   runScheduler,
   submitJob,
+  removeJob,
   clearJobs,
   lift,
   whenReady,
@@ -51,8 +53,11 @@ data ScheduledJob jobtype =
   | Once          { atTime :: UTCTime, jobdata :: jobtype }
   | Immediately   { jobdata :: jobtype }
   | After         { delay :: Delay, jobdata :: jobtype }
-
   deriving (Eq, Show)
+
+data ScheduledJobMatcher jobtype =
+  Exact (ScheduledJob jobtype)
+  | ByContent jobtype
 
 data JobState jobtype = JobState {
   jobDefinition :: !(ScheduledJob jobtype),
@@ -91,7 +96,17 @@ submitJob job = do
       jobQueue = PQ.insert startTime (JobState job Nothing Nothing Nothing referenceTime) jobQueue
     }
 
-clearJobs :: (Timer m) => Scheduler jobtype m ()
+removeJob :: (Monad m, Eq jobtype) => ScheduledJobMatcher jobtype -> Scheduler jobtype m ()
+removeJob toRemove = modify $ \SchedulerState{..} ->
+  SchedulerState {
+    jobQueue = PQ.filter (predicate toRemove) jobQueue,
+    ..
+  }
+  where
+    predicate (Exact scheduledJob) JobState{..} = jobDefinition /= scheduledJob
+    predicate (ByContent jobData)  JobState{..} = jobdata jobDefinition /= jobData
+
+clearJobs :: Monad m => Scheduler jobtype m ()
 clearJobs = modify $ \originalState -> originalState { jobQueue = PQ.empty }
 
 runScheduler :: (Timer m) => [ScheduledJob jobtype] -> Scheduler jobtype m a -> m a

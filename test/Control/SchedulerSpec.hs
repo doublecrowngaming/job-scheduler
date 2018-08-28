@@ -67,9 +67,10 @@ spec = do
             execTestTimer initTime (sleepUntil endTime) === TestTimerState endTime 0 ([] :: [String]) [] []
 
   describe "Scheduler" $ do
+    let bookkeep src = incrementExecutionCounter >> observeSource src
+    let succeed = return (Continue Ok)
+
     describe "whenReady" $ do
-      let bookkeep src = incrementExecutionCounter >> observeSource src
-      let succeed = return (Continue Ok)
       let dirsrc1 = Periodic 5 "foo"
           dirsrc2 = PeriodicAfter 17 4 "bar"
 
@@ -209,3 +210,30 @@ spec = do
                           sourceTimings = map utc [3, 7, 9],
                           callbackTracker = []
                        }
+
+    describe "removeJob" $ do
+      it "removes an Exact job" $
+        execTestTimer (utc 0) (
+          runScheduler [Once (utc 3) "bar", Once (utc 3) "foo", Once (utc 5) "foo"] $ do
+            removeJob (Exact $ Once (utc 3) "foo")
+            whenReady $ \src -> bookkeep src >> succeed
+        ) `shouldBe` TestTimerState {
+          clock            = utc 5,
+          executionCounter = 2,
+          jobsSeen         = ["bar", "foo"],
+          sourceTimings    = map utc [3, 5],
+          callbackTracker  = []
+        }
+
+      it "removes a job ByContent" $
+        execTestTimer (utc 0) (
+          runScheduler [Once (utc 3) "bar", Once (utc 3) "foo", Once (utc 5) "foo"] $ do
+            removeJob (ByContent "foo")
+            whenReady $ \src -> bookkeep src >> succeed
+        ) `shouldBe` TestTimerState {
+          clock            = utc 3,
+          executionCounter = 1,
+          jobsSeen         = ["bar"],
+          sourceTimings    = map utc [3],
+          callbackTracker  = []
+        }
