@@ -7,12 +7,14 @@ module Control.Scheduler.Time (
   addDelay,
   addInterval,
   diffTime,
+  replaceTime,
   subtractDelay,
   next
 ) where
 
-import           Data.Time.Clock (NominalDiffTime, UTCTime (..), addUTCTime,
-                                  diffUTCTime)
+import           Data.Time.Clock (DiffTime, NominalDiffTime, UTCTime (..),
+                                  addUTCTime, diffUTCTime)
+
 
 newtype Delay         = Delay         NominalDiffTime deriving (Eq, Show, Num, Ord)
 newtype Interval      = Interval      NominalDiffTime deriving (Eq, Show, Num, Ord)
@@ -29,6 +31,9 @@ addInterval time (Interval interval) = realToFrac interval `addUTCTime` time
 
 diffTime :: UTCTime -> UTCTime -> Delay
 diffTime = (Delay .) . diffUTCTime
+
+replaceTime :: UTCTime -> DiffTime -> UTCTime
+replaceTime (UTCTime day _) = UTCTime day
 
 next :: ReferenceTime -> Interval -> UTCTime -> UTCTime
 next (ReferenceTime baseTime) (Interval increment) now =

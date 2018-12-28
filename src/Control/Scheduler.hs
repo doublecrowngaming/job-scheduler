@@ -38,11 +38,10 @@ import           Control.Monad.State       (MonadState, StateT, evalStateT, get,
 import           Control.Monad.Trans.Class (MonadTrans (..))
 import           Control.Scheduler.Time    (Delay (..), Interval (..),
                                             ReferenceTime (..), addDelay,
-                                            diffTime, next)
+                                            diffTime, next, replaceTime)
 import           Data.Maybe                (fromMaybe)
 import qualified Data.PQueue.Prio.Min      as PQ
-import           Data.Time.Clock           (UTCTime, getCurrentTime)
-
+import           Data.Time.Clock           (DiffTime, UTCTime, getCurrentTime)
 
 data Status = Ok | Error deriving (Eq, Show)
 data ExecutionResult = Continue Status | Halt deriving (Eq, Show)
@@ -50,6 +49,7 @@ data ExecutionResult = Continue Status | Halt deriving (Eq, Show)
 data ScheduledJob jobtype =
   Periodic        { runInterval :: Interval, jobdata :: jobtype }
   | PeriodicAfter { delay :: Delay, runInterval :: Interval, jobdata :: jobtype }
+  | DailyAt       { time :: DiffTime, jobdata :: jobtype }
   | Once          { atTime :: UTCTime, jobdata :: jobtype }
   | Immediately   { jobdata :: jobtype }
   | After         { delay :: Delay, jobdata :: jobtype }
@@ -86,6 +86,7 @@ submitJob job = do
   let startTime = case job of
                     Periodic{}           -> now
                     PeriodicAfter{delay} -> now `addDelay` delay
+                    DailyAt{time}        -> now `replaceTime` time
                     Once{atTime}         -> atTime
                     Immediately{}        -> now
                     After{delay}         -> now `addDelay` delay
@@ -147,6 +148,7 @@ reschedule jobState@JobState{jobDefinition, referenceTime} status' =
     After{}                    -> return ()
     Periodic{runInterval}      -> reschedulePeriodic runInterval status'
     PeriodicAfter{runInterval} -> reschedulePeriodic runInterval status'
+    DailyAt{}                  -> reschedulePeriodic (Interval 86400) status'
   where
     reschedulePeriodic runInterval status = do
       now <- currentTime

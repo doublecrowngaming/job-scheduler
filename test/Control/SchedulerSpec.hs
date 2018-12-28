@@ -120,6 +120,31 @@ spec = do
                         sourceTimings = map utc [100, 105, 110, 115, 117, 120, 121, 125, 125, 129],
                         callbackTracker = []
                       }
+
+      it "runs DailyAt jobs" $ do
+        let resultState = execTestTimer (read "1970-01-01 00:00:00") (
+                            runScheduler [DailyAt (18 * 60 * 60) "baz"] $
+                              whenReady $ \src -> do
+                                counter <- getExecutionCounter
+                                case counter of
+                                  10 -> return Halt
+                                  _  -> bookkeep src >> succeed
+                          )
+
+        clock resultState `shouldBe` read "1970-01-11 18:00:00"
+        sourceTimings resultState `shouldBe` map utc [
+            18 * 60 * 60 + 0 * 86400,
+            18 * 60 * 60 + 1 * 86400,
+            18 * 60 * 60 + 2 * 86400,
+            18 * 60 * 60 + 3 * 86400,
+            18 * 60 * 60 + 4 * 86400,
+            18 * 60 * 60 + 5 * 86400,
+            18 * 60 * 60 + 6 * 86400,
+            18 * 60 * 60 + 7 * 86400,
+            18 * 60 * 60 + 8 * 86400,
+            18 * 60 * 60 + 9 * 86400
+          ]
+
       it "executes pending actions as soon as possible after a long-running action completes" $
         execTestTimer (utc 100) (
           runScheduler [dirsrc1] $
