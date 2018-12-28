@@ -1,0 +1,35 @@
+name: job-scheduler
+version: 0.2.0.0
+synopsis: Simple in-memory job scheduling
+description: See README
+maintainer: Jesse Kempf
+github: binarysunrise-io/job-scheduler
+
+ghc-options: -Wall -O2
+
+dependencies:
+  - QuickCheck
+  - aeson
+  - base >= 4.7 && < 5
+  - pqueue
+  - time
+  - transformers
+  - containers
+  - mtl
+  - monad-logger
+  - exceptions
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Control.Scheduler
+    - Control.Scheduler.Time
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - job-scheduler
+      - hspec >=2.0.0
