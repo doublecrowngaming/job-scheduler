@@ -1,5 +1,5 @@
 name: job-scheduler
-version: 0.2.0.0
+version: 0.3.0.0
 synopsis: Simple in-memory job scheduling
 description: See README
 maintainer: Jesse Kempf
