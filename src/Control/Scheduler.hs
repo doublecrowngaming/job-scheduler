@@ -15,19 +15,21 @@
 
 module Control.Scheduler where
 
-import           Control.Monad             (forM_, forever)
-import           Control.Monad.Catch       (MonadCatch (..), MonadMask (..),
-                                            MonadThrow (..))
-import           Control.Monad.State       (MonadState, StateT, evalStateT, get,
-                                            lift, modify, put)
-import           Control.Monad.Trans.Class (MonadTrans (..))
-import           Control.Scheduler.Time    (Delay (..), Interval (..),
-                                            ReferenceTime (..), addDelay,
-                                            diffTime, next, replaceTime)
-import           Data.Maybe                (fromMaybe)
-import qualified Data.PQueue.Prio.Min      as PQ
-import           Data.Time.Clock           (DiffTime, UTCTime, getCurrentTime)
-import           Numeric.Natural           (Natural)
+import           Control.Concurrent         (threadDelay)
+import           Control.Monad              (forM_, forever)
+import           Control.Monad.Catch        (MonadCatch (..), MonadMask (..),
+                                             MonadThrow (..))
+import           Control.Monad.IO.Class     (MonadIO (..))
+import           Control.Monad.State.Strict (MonadState, StateT, evalStateT,
+                                             get, gets, lift, modify, put)
+import           Control.Monad.Trans.Class  (MonadTrans (..))
+import           Control.Scheduler.Time     (Delay (..), Interval (..),
+                                             ReferenceTime (..), addDelay,
+                                             diffTime, next, replaceTime)
+import           Data.Maybe                 (fromMaybe)
+import qualified Data.PQueue.Prio.Min       as PQ
+import           Data.Time.Clock            (DiffTime, UTCTime, getCurrentTime)
+import           Numeric.Natural            (Natural)
 
 
 data Status = Ok | Error deriving (Eq, Show)
@@ -53,9 +55,10 @@ instance Task (Immediately d) where
   nextJob (Immediately _)   = const Nothing
   apply   (Immediately d) f = f d
 
-class MonadChronometer m => MonadScheduler m d where
-  schedule :: (Task t, TaskData t ~ d) => t -> m ()
-  nextScheduledJob :: m (Maybe (Job d))
+class MonadChronometer m => MonadScheduler d m where
+  schedule         :: (Task t, TaskData t ~ d) => t -> m ()
+  -- nextScheduledJob :: m (Maybe (Job d))
+  -- react            :: (d -> m ()) -> m ()
 
 data Job d where
   Job :: Task t => t -> Job (TaskData t)
@@ -75,10 +78,10 @@ newtype Scheduler d m a = Scheduler { unScheduler :: StateT (InMemorySchedulerSt
                             deriving (
                               Functor, Applicative, Monad,
                               MonadState (InMemorySchedulerState d),
-                              MonadThrow, MonadCatch, MonadMask
+                              MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans
                             )
 
-instance (Monad m, MonadChronometer (Scheduler d m)) => MonadScheduler (Scheduler d m) d where
+instance forall m d. (Monad m, MonadChronometer m) => MonadScheduler d (Scheduler d m) where
   schedule task = do
     executesAt <- runAt task <$> now
 
@@ -87,19 +90,45 @@ instance (Monad m, MonadChronometer (Scheduler d m)) => MonadScheduler (Schedule
         imssJobQueue = PQ.insert executesAt (Job task) imssJobQueue
       }
 
+  -- nextScheduledJob = do
+  --   jobQueue <- gets imssJobQueue
 
-runMonadScheduler :: forall m d. MonadScheduler m d => (d -> m ()) -> m ()
-runMonadScheduler handler = do
-    executionTime <- now
+  --   case PQ.minView jobQueue of
+  --     Nothing -> return Nothing
+  --     Just (job, newQueue) -> do
+  --       modify $ \schedulerState -> schedulerState { imssJobQueue = newQueue }
+  --       return (Just job)
 
-    nextScheduledJob >>= \case
-      Nothing  -> return ()
-      Just job -> do
-        apply job handler
-        mapM_ schedule (nextJob job executionTime)
+  -- react handler =
+  --   nextScheduledJob >>= \case
+  --     Nothing  -> return ()
+  --     Just job -> do
+  --       wakeupTime  <- now
+  --       let runTime = runAt job wakeupTime
 
-        runMonadScheduler handler
+  --       sleepUntil runTime
 
+  --       apply job handler
+
+  --       mapM_ schedule (nextJob job runTime)
+
+  --       react handler
+
+runScheduler :: (MonadChronometer m) => Scheduler d m () -> m ()
+runScheduler actions = evalStateT (unScheduler actions) (InMemorySchedulerState PQ.empty)
+
+instance (MonadChronometer m, MonadTrans t, Monad (t m)) => MonadChronometer (t m) where
+  now = lift now
+  sleepUntil = lift . sleepUntil
+
+instance MonadChronometer IO where
+  now = getCurrentTime
+  sleepUntil wakeupTime = do
+    now' <- now
+
+    timerSleep (wakeupTime `diffTime` now')
+      where
+        timerSleep (Delay interval) = threadDelay (1000 * 1000 * round interval)
 -- instance Schedulable (ScheduledJob' jobtype) where
 --   type JobData (ScheduledJob' jobtype) = jobtype
 
