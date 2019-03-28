@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0bee1200423d4e91ebac1d29a61a4e3c2da8b31cccf73791e692b2200a55bc9e
+-- hash: 9f244f9799cb8d3ef3857210e4a47eb77d02327e8ea888220dec605b9278c050
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -24,6 +24,12 @@ library
       Control.Scheduler
       Control.Scheduler.Time
   other-modules:
+      Control.Scheduler.Chronometer
+      Control.Scheduler.Class
+      Control.Scheduler.Runner.SingleThreaded
+      Control.Scheduler.Task.Class
+      Control.Scheduler.Task.Immediately
+      Control.Scheduler.Type
       Paths_job_scheduler
   hs-source-dirs:
       src

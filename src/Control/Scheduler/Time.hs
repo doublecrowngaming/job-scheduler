@@ -11,7 +11,6 @@ module Control.Scheduler.Time (
   addInterval,
   diffTime,
   replaceTime,
-  subtractDelay,
   next
 ) where
 
@@ -26,9 +25,6 @@ newtype CurrentTime   = CurrentTime   UTCTime         deriving (Eq, Show)
 
 addDelay :: UTCTime -> Delay -> UTCTime
 addDelay time (Delay delay) = delay `addUTCTime` time
-
-subtractDelay :: UTCTime -> Delay -> UTCTime
-subtractDelay time (Delay delay) = delay `addUTCTime` time
 
 addInterval :: UTCTime -> Interval -> UTCTime
 addInterval time (Interval interval) = realToFrac interval `addUTCTime` time
