@@ -1,9 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 
 module Control.Scheduler.Time (
   Delay(..),
   Interval(..),
   ReferenceTime(..),
+  ScheduledTime(..),
+  CurrentTime(..),
   addDelay,
   addInterval,
   diffTime,
@@ -15,10 +18,11 @@ module Control.Scheduler.Time (
 import           Data.Time.Clock (DiffTime, NominalDiffTime, UTCTime (..),
                                   addUTCTime, diffUTCTime)
 
-
 newtype Delay         = Delay         NominalDiffTime deriving (Eq, Show, Num, Ord)
 newtype Interval      = Interval      NominalDiffTime deriving (Eq, Show, Num, Ord)
 newtype ReferenceTime = ReferenceTime UTCTime         deriving (Eq, Show)
+newtype ScheduledTime = ScheduledTime UTCTime         deriving (Eq, Show, Ord)
+newtype CurrentTime   = CurrentTime   UTCTime         deriving (Eq, Show)
 
 addDelay :: UTCTime -> Delay -> UTCTime
 addDelay time (Delay delay) = delay `addUTCTime` time
@@ -28,9 +32,6 @@ subtractDelay time (Delay delay) = delay `addUTCTime` time
 
 addInterval :: UTCTime -> Interval -> UTCTime
 addInterval time (Interval interval) = realToFrac interval `addUTCTime` time
-
-diffTime :: UTCTime -> UTCTime -> Delay
-diffTime = (Delay .) . diffUTCTime
 
 replaceTime :: UTCTime -> DiffTime -> UTCTime
 replaceTime (UTCTime day _) = UTCTime day
@@ -43,3 +44,13 @@ next (ReferenceTime baseTime) (Interval increment) now =
     intervalsSinceReference = floor (timeSinceReference / increment) :: Integer
     intervalsForNext        = intervalsSinceReference + 1
     totalIncrement          = increment * fromIntegral intervalsForNext :: NominalDiffTime
+
+
+class DiffableTime a b where
+  diffTime :: a -> b -> Delay
+
+instance DiffableTime UTCTime UTCTime where
+  diffTime = (Delay .) . diffUTCTime
+
+instance DiffableTime ScheduledTime CurrentTime where
+  diffTime (ScheduledTime st) (CurrentTime ct) = Delay (st `diffUTCTime` ct)
