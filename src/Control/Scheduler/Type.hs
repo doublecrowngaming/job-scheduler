@@ -10,12 +10,11 @@ module Control.Scheduler.Type (
   RunnableScheduler(..)
 ) where
 
-import           Control.Monad.Catch           (MonadCatch (..), MonadMask (..),
-                                                MonadThrow (..))
-import           Control.Monad.IO.Class        (MonadIO (..))
-import           Control.Monad.State.Strict    (MonadState, StateT)
-import           Control.Monad.Trans.Class     (MonadTrans (..))
-import           Control.Scheduler.Chronometer (MonadChronometer (..))
+import           Control.Monad.Catch        (MonadCatch (..), MonadMask (..),
+                                             MonadThrow (..))
+import           Control.Monad.IO.Class     (MonadIO (..))
+import           Control.Monad.State.Strict (MonadState, StateT)
+import           Control.Monad.Trans.Class  (MonadTrans (..))
 
 
 newtype Scheduler s d m a = Scheduler { unScheduler :: StateT (s d) m a }

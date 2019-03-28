@@ -9,21 +9,13 @@ module Control.Scheduler.Runner.SingleThreaded (
 ) where
 
 
-import           Control.Monad.State.Strict         (evalStateT, get, gets,
-                                                     lift, modify, put)
-import           Control.Scheduler.Chronometer      (MonadChronometer (..))
-import           Control.Scheduler.Class            (MonadJobs (..))
-import           Control.Scheduler.Task.Class       (Job (..), Task (..))
-import           Control.Scheduler.Task.Immediately
-import           Control.Scheduler.Time             (CurrentTime (..),
-                                                     Delay (..), Interval (..),
-                                                     ReferenceTime (..),
-                                                     ScheduledTime (..),
-                                                     addDelay, diffTime, next,
-                                                     replaceTime)
-import           Control.Scheduler.Type             (RunnableScheduler (..),
-                                                     Scheduler, unScheduler)
-import qualified Data.PQueue.Prio.Min               as PQ
+import           Control.Monad.State.Strict   (evalStateT, gets, modify)
+import           Control.Scheduler.Class      (MonadJobs (..))
+import           Control.Scheduler.Task.Class (Job (..))
+import           Control.Scheduler.Time       (ScheduledTime (..))
+import           Control.Scheduler.Type       (RunnableScheduler (..),
+                                               Scheduler, unScheduler)
+import qualified Data.PQueue.Prio.Min         as PQ
 
 
 newtype SingleThreaded d = SingleThreaded {
