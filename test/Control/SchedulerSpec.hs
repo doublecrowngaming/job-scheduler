@@ -9,7 +9,7 @@ import           Control.Monad.Writer
 import           Control.Scheduler.Chronometer
 import           Control.Scheduler.Class
 import           Control.Scheduler.Runner.SingleThreaded
-import           Control.Scheduler.Task.Immediately
+import           Control.Scheduler.Task
 import           Control.Scheduler.Time                  (CurrentTime (..),
                                                           ScheduledTime (..))
 import           Control.Scheduler.Type
@@ -41,11 +41,20 @@ execEffectLogger startTime action =
     )
   ) startTime
 
+testScheduler :: Scheduler SingleThreaded String EffectLogger () -> [ExecutedAction]
+testScheduler = execEffectLogger (read "1970-01-01 00:00:00") . runScheduler @SingleThreaded
+
+loggingReactor :: Scheduler SingleThreaded String EffectLogger ()
+loggingReactor =
+  react $ \datum -> do
+    now' <- now
+    lift $ tell [ExecutedAction now' datum]
+
 spec :: Spec
-spec =
+spec = do
   describe "Scheduler" $
     it "runs jobs until it has drained its work queue" $ do
-      let history = execEffectLogger (read "1970-01-01 00:00:00") . runScheduler @SingleThreaded $ do
+      let history = testScheduler $ do
                       schedule $ Immediately "foo"
 
                       react $ \datum -> do
@@ -55,3 +64,44 @@ spec =
       history `shouldMatchList` [
           ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "foo"
         ]
+
+  describe "Task types" $ do
+    describe "Immediately" $
+      it "runs as soon as the reactor starts" $ do
+        let history = testScheduler $ do
+                        schedule $ Immediately "foobar"
+
+                        sleepUntil (ScheduledTime (read "1980-01-01 12:34:56"))
+
+                        loggingReactor
+
+        history `shouldBe` [
+            ExecutedAction (CurrentTime (read "1980-01-01 12:34:56")) "foobar"
+          ]
+
+
+    describe "At" $
+      it "runs at a given time" $ do
+        let history = testScheduler $ do
+                        schedule $ Immediately "immediate"
+                        schedule $ At (ScheduledTime (read "1970-01-02 03:04:05")) "atjob"
+
+                        loggingReactor
+
+        history `shouldBe` [
+            ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "immediate",
+            ExecutedAction (CurrentTime (read "1970-01-02 03:04:05")) "atjob"
+          ]
+
+    describe "After" $
+      it "runs after a given delay" $ do
+        let history = testScheduler $ do
+                        schedule $ Immediately "immediate"
+                        schedule $ After 30 "afterjob"
+
+                        loggingReactor
+
+        history `shouldBe` [
+            ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "immediate",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:00:30")) "afterjob"
+          ]

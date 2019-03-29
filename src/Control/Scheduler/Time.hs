@@ -9,6 +9,7 @@ module Control.Scheduler.Time (
   CurrentTime(..),
   addDelay,
   addInterval,
+  addTime,
   diffTime,
   replaceTime,
   next
@@ -41,6 +42,20 @@ next (ReferenceTime baseTime) (Interval increment) now =
     intervalsForNext        = intervalsSinceReference + 1
     totalIncrement          = increment * fromIntegral intervalsForNext :: NominalDiffTime
 
+class AddableTime a b c where
+  addTime :: a -> b -> c
+
+instance AddableTime UTCTime Delay UTCTime where
+  addTime = addDelay
+
+instance AddableTime ScheduledTime Delay ScheduledTime where
+  addTime (ScheduledTime time) = ScheduledTime . addTime time
+
+instance AddableTime CurrentTime Delay CurrentTime where
+  addTime (CurrentTime time) = CurrentTime . addTime time
+
+instance AddableTime CurrentTime Delay ScheduledTime where
+  addTime (CurrentTime time) = ScheduledTime . addTime time
 
 class DiffableTime a b where
   diffTime :: a -> b -> Delay

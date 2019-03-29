@@ -2,13 +2,11 @@
 
 module Control.Scheduler.Task.ImmediatelySpec (spec) where
 
-import           Control.Scheduler.Task.Class
-import           Control.Scheduler.Task.Immediately
-import           Control.Scheduler.Time             (CurrentTime (..),
-                                                     ScheduledTime (..))
+import           Control.Scheduler.Task
+import           Control.Scheduler.Time (CurrentTime (..), ScheduledTime (..))
 import           Data.Functor.Identity
-import           Data.Maybe                         (isNothing)
-import           Data.Time.Clock                    (UTCTime (..))
+import           Data.Maybe             (isNothing)
+import           Data.Time.Clock        (UTCTime (..))
 
 import           Test.Hspec
 import           Test.QuickCheck

@@ -26,8 +26,7 @@ library:
     - Control.Scheduler.Chronometer
     - Control.Scheduler.Class
     - Control.Scheduler.Runner.SingleThreaded
-    - Control.Scheduler.Task.Class
-    - Control.Scheduler.Task.Immediately
+    - Control.Scheduler.Task
     - Control.Scheduler.Time
     - Control.Scheduler.Type
 tests:
