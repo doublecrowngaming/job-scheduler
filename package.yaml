@@ -23,8 +23,13 @@ library:
   source-dirs: src
   exposed-modules:
     - Control.Scheduler
+    - Control.Scheduler.Chronometer
+    - Control.Scheduler.Class
+    - Control.Scheduler.Runner.SingleThreaded
+    - Control.Scheduler.Task.Class
+    - Control.Scheduler.Task.Immediately
     - Control.Scheduler.Time
-
+    - Control.Scheduler.Type
 tests:
   spec:
     main: Spec.hs

@@ -1,5 +1,6 @@
-{-# LANGUAGE GADTs        #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies       #-}
 
 module Control.Scheduler.Task.Class (
   Task(..),
@@ -17,7 +18,6 @@ class Task t where
 
 data Job d where
   Job :: Task t => t -> Job (TaskData t)
-
 
 instance Task (Job d) where
   type TaskData (Job d) = d
