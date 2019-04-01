@@ -5,10 +5,11 @@
 {-# LANGUAGE RecordWildCards       #-}
 
 module Control.Scheduler.Runner.SingleThreaded (
-  SingleThreaded
+  SingleThreaded,
+  setSchedulerEndTime
 ) where
 
-
+import           Control.Monad                (when)
 import           Control.Monad.State.Strict   (evalStateT, gets, modify)
 import           Control.Scheduler.Class      (MonadJobs (..))
 import           Control.Scheduler.Task.Class (Job (..))
@@ -18,16 +19,28 @@ import           Control.Scheduler.Type       (RunnableScheduler (..),
 import qualified Data.PQueue.Prio.Min         as PQ
 
 
-newtype SingleThreaded d = SingleThreaded {
-  stJobQueue :: PQ.MinPQueue ScheduledTime (Job d)
+data SingleThreaded d = SingleThreaded {
+  stJobQueue :: PQ.MinPQueue ScheduledTime (Job d),
+  stEndTime  :: Maybe ScheduledTime
 }
 
+setSchedulerEndTime :: Monad m => ScheduledTime -> Scheduler SingleThreaded d m ()
+setSchedulerEndTime endTime = modify $ \schedulerState@SingleThreaded{..} ->
+                                          schedulerState { stEndTime = Just endTime }
+
 instance Monad m => MonadJobs d (Scheduler SingleThreaded d m) where
-  pushQueue executesAt item =
-    modify $ \schedulerState@SingleThreaded{..} ->
-      schedulerState {
-        stJobQueue = PQ.insert executesAt item stJobQueue
-      }
+  pushQueue executesAt item = do
+    mbEndTime <- gets stEndTime
+
+    case mbEndTime of
+      Nothing      -> insertJob
+      Just endTime -> when (executesAt <= endTime) insertJob
+
+    where
+      insertJob = modify $ \schedulerState@SingleThreaded{..} ->
+                              schedulerState {
+                                stJobQueue = PQ.insert executesAt item stJobQueue
+                              }
 
   popQueue = do
     jobQueue <- gets stJobQueue
@@ -41,4 +54,4 @@ instance Monad m => MonadJobs d (Scheduler SingleThreaded d m) where
   execute = id
 
 instance RunnableScheduler SingleThreaded where
-  runScheduler actions = evalStateT (unScheduler actions) (SingleThreaded PQ.empty)
+  runScheduler actions = evalStateT (unScheduler actions) (SingleThreaded PQ.empty Nothing)

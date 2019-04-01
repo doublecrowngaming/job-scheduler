@@ -48,6 +48,9 @@ class AddableTime a b c where
 instance AddableTime UTCTime Delay UTCTime where
   addTime = addDelay
 
+instance AddableTime UTCTime Interval UTCTime where
+  addTime = addInterval
+
 instance AddableTime ScheduledTime Delay ScheduledTime where
   addTime (ScheduledTime time) = ScheduledTime . addTime time
 
@@ -55,6 +58,9 @@ instance AddableTime CurrentTime Delay CurrentTime where
   addTime (CurrentTime time) = CurrentTime . addTime time
 
 instance AddableTime CurrentTime Delay ScheduledTime where
+  addTime (CurrentTime time) = ScheduledTime . addTime time
+
+instance AddableTime CurrentTime Interval ScheduledTime where
   addTime (CurrentTime time) = ScheduledTime . addTime time
 
 class DiffableTime a b where

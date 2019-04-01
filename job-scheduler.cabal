@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e36cd69b169c59c7f9bc014f28a9ae6a789ae45ce041e797921aaa4f106695f9
+-- hash: fb33226f001ea3b6c70f8b881f12ff9dc4d07ac436b647f9c5520dc21c710def
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -32,6 +32,7 @@ library
       Control.Scheduler.Task.After
       Control.Scheduler.Task.At
       Control.Scheduler.Task.Class
+      Control.Scheduler.Task.Every
       Control.Scheduler.Task.Immediately
       Paths_job_scheduler
   hs-source-dirs:
@@ -56,6 +57,7 @@ test-suite spec
   other-modules:
       Control.Scheduler.Task.AfterSpec
       Control.Scheduler.Task.AtSpec
+      Control.Scheduler.Task.EverySpec
       Control.Scheduler.Task.ImmediatelySpec
       Control.Scheduler.TimeSpec
       Control.SchedulerSpec

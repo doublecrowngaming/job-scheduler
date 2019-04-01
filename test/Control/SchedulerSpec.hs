@@ -33,6 +33,7 @@ data ExecutedAction = ExecutedAction CurrentTime String deriving (Eq, Show)
 newtype EffectLogger a = EffectLogger { runEffectLogger :: WriterT [ExecutedAction] PureTime a }
   deriving (Functor, Applicative, Monad, MonadWriter [ExecutedAction], MonadChronometer)
 
+
 execEffectLogger :: UTCTime -> EffectLogger a -> [ExecutedAction]
 execEffectLogger startTime action =
   evalState (
@@ -104,4 +105,23 @@ spec = do
         history `shouldBe` [
             ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "immediate",
             ExecutedAction (CurrentTime (read "1970-01-01 00:00:30")) "afterjob"
+          ]
+
+    describe "Every" $
+      it "runs every N seconds" $ do
+        let history = testScheduler $ do
+                        setSchedulerEndTime (ScheduledTime (read "1970-01-01 00:03:00"))
+                        schedule $ Immediately "immediate"
+                        schedule $ Every 30 30 "every"
+
+                        loggingReactor
+
+        history `shouldBe` [
+            ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "immediate",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:00:30")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:01:00")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:01:30")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:02:00")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:02:30")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:03:00")) "every"
           ]
