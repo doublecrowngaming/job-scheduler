@@ -14,6 +14,6 @@ newtype Immediately d = Immediately d deriving (Eq, Show)
 instance Task (Immediately d) where
   type TaskData (Immediately d) = d
 
-  runAt   (Immediately _) (CurrentTime now) = ScheduledTime now
+  runAt   (Immediately _) (CurrentTime now) = Just $ ScheduledTime now
   nextJob (Immediately _)                   = const Nothing
   apply   (Immediately d) f                 = f d

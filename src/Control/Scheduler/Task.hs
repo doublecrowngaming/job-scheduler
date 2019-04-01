@@ -2,6 +2,7 @@ module Control.Scheduler.Task (
   module Control.Scheduler.Task.Class,
   module Control.Scheduler.Task.After,
   module Control.Scheduler.Task.At,
+  module Control.Scheduler.Task.Cron,
   module Control.Scheduler.Task.Every,
   module Control.Scheduler.Task.Immediately
 ) where
@@ -9,5 +10,6 @@ module Control.Scheduler.Task (
 import           Control.Scheduler.Task.After
 import           Control.Scheduler.Task.At
 import           Control.Scheduler.Task.Class
+import           Control.Scheduler.Task.Cron
 import           Control.Scheduler.Task.Every
 import           Control.Scheduler.Task.Immediately

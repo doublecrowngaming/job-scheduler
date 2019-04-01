@@ -11,7 +11,7 @@ import           Control.Scheduler.Time (CurrentTime, ScheduledTime)
 class Task t where
   type TaskData t :: *
 
-  runAt   :: t -> CurrentTime -> ScheduledTime
+  runAt   :: t -> CurrentTime -> Maybe ScheduledTime
   nextJob :: t -> CurrentTime -> Maybe (Job (TaskData t))
   apply   :: t -> (TaskData t -> m a) -> m a
 

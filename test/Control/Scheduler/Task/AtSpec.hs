@@ -27,7 +27,7 @@ spec =
         let scheduledTime = ScheduledTime runtime
             currentTime   = CurrentTime now
         in
-          runAt (At scheduledTime ()) currentTime === scheduledTime
+          runAt (At scheduledTime ()) currentTime === Just scheduledTime
 
     it "produces no successor jobs" $ property $
       \(ArbitraryTime now, ArbitraryTime runtime) ->

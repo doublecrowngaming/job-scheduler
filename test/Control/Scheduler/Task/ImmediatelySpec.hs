@@ -23,7 +23,7 @@ spec :: Spec
 spec =
   describe "Immediately" $ do
     it "always wants to run without delay" $ property $
-      \(ArbitraryTime timestamp) -> runAt (Immediately ()) (CurrentTime timestamp) === ScheduledTime timestamp
+      \(ArbitraryTime timestamp) -> runAt (Immediately ()) (CurrentTime timestamp) === Just (ScheduledTime timestamp)
 
     it "produces no successor jobs" $ property $
       \(ArbitraryTime timestamp) -> isNothing $ nextJob (Immediately ()) (CurrentTime timestamp)

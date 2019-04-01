@@ -14,6 +14,7 @@ import           Control.Scheduler.Time                  (CurrentTime (..),
                                                           ScheduledTime (..))
 import           Control.Scheduler.Type
 import           Data.Time.Clock                         (UTCTime)
+import           System.Cron                             (yearly)
 
 import           Test.Hspec
 
@@ -124,4 +125,25 @@ spec = do
             ExecutedAction (CurrentTime (read "1970-01-01 00:02:00")) "every",
             ExecutedAction (CurrentTime (read "1970-01-01 00:02:30")) "every",
             ExecutedAction (CurrentTime (read "1970-01-01 00:03:00")) "every"
+          ]
+
+    describe "Cron" $
+      it "runs according to a cron schedule" $ do
+        let history = testScheduler $ do
+                        setSchedulerEndTime (ScheduledTime (read "1980-01-01 00:00:00"))
+                        schedule $ Cron yearly "cron"
+
+                        loggingReactor
+
+        history `shouldBe` [
+            ExecutedAction (CurrentTime (read "1971-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1972-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1973-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1974-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1975-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1976-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1977-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1978-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1979-01-01 00:00:00")) "cron",
+            ExecutedAction (CurrentTime (read "1980-01-01 00:00:00")) "cron"
           ]

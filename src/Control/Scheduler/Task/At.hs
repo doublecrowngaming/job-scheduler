@@ -13,6 +13,6 @@ data At d = At ScheduledTime d deriving (Eq, Show)
 instance Task (At d) where
   type TaskData (At d) = d
 
-  runAt   (At scheduledTime _) = const scheduledTime
+  runAt   (At scheduledTime _) = const (Just scheduledTime)
   nextJob (At _ _)             = const Nothing
   apply   (At _ d) f           = f d

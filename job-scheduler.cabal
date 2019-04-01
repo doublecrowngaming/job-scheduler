@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fb33226f001ea3b6c70f8b881f12ff9dc4d07ac436b647f9c5520dc21c710def
+-- hash: e8c8fe4d575064eb8020c00e4ccb600c2d903a9afee1aad23a22561feb408185
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -32,6 +32,7 @@ library
       Control.Scheduler.Task.After
       Control.Scheduler.Task.At
       Control.Scheduler.Task.Class
+      Control.Scheduler.Task.Cron
       Control.Scheduler.Task.Every
       Control.Scheduler.Task.Immediately
       Paths_job_scheduler
@@ -43,6 +44,7 @@ library
     , aeson
     , base >=4.7 && <5
     , containers
+    , cron
     , exceptions
     , monad-logger
     , mtl
@@ -57,6 +59,7 @@ test-suite spec
   other-modules:
       Control.Scheduler.Task.AfterSpec
       Control.Scheduler.Task.AtSpec
+      Control.Scheduler.Task.CronSpec
       Control.Scheduler.Task.EverySpec
       Control.Scheduler.Task.ImmediatelySpec
       Control.Scheduler.TimeSpec
@@ -70,6 +73,7 @@ test-suite spec
     , aeson
     , base >=4.7 && <5
     , containers
+    , cron
     , exceptions
     , hspec >=2.0.0
     , job-scheduler

@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
@@ -24,18 +23,24 @@ class MonadJobs d m | m -> d where
   popQueue  :: m (Maybe (Job d))
   execute   :: m () -> m ()
 
+whenJust :: Applicative f => Maybe a -> (a -> f ()) -> f ()
+whenJust Nothing  _      = pure ()
+whenJust (Just x) action = action x
 
 instance (Monad m, MonadChronometer m, MonadJobs d m) => MonadScheduler d m where
   schedule task = do
-    executesAt <- runAt task <$> now
-    pushQueue executesAt (Job task)
+    mbExecutesAt <- runAt task <$> now
 
-  react handler =
-    popQueue >>= \case
-      Nothing  -> return ()
-      Just job -> do
-        runTime <- runAt job <$> now
+    whenJust mbExecutesAt $ \executesAt ->
+      pushQueue executesAt (Job task)
 
+  react handler = do
+    mbJob <- popQueue
+
+    whenJust mbJob $ \job -> do
+      mbRunTime <- runAt job <$> now
+
+      whenJust mbRunTime $ \runTime -> do
         sleepUntil runTime
 
         execute (apply job handler)

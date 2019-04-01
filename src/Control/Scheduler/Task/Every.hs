@@ -13,6 +13,6 @@ data Every d = Every Delay Interval d deriving (Eq, Show)
 instance Task (Every d) where
   type TaskData (Every d) = d
 
-  runAt   (Every delay interval _)   = (`addTime` delay)
-  nextJob (Every delay interval d)   = const $ Just $ Job (Every delay interval d)
+  runAt   (Every delay interval _)   = Just . (`addTime` delay)
+  nextJob                            = const . Just . Job
   apply   (Every _     _        d) f = f d

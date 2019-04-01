@@ -30,7 +30,7 @@ spec =
   describe "After" $ do
     it "always runs after a given delay" $ property $
       \(ArbitraryTime timestamp, ArbitraryDelay delay) ->
-        runAt (After delay ()) (CurrentTime timestamp) === ScheduledTime (timestamp `addTime` delay)
+        runAt (After delay ()) (CurrentTime timestamp) === Just (ScheduledTime (timestamp `addTime` delay))
 
     it "produces no successor jobs" $ property $
       \(ArbitraryTime timestamp, ArbitraryDelay delay) ->
