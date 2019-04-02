@@ -113,18 +113,18 @@ spec = do
         let history = testScheduler $ do
                         setSchedulerEndTime (ScheduledTime (read "1970-01-01 00:03:00"))
                         schedule $ Immediately "immediate"
-                        schedule $ Every 30 30 "every"
+                        schedule $ Every 15 30 "every"
 
                         loggingReactor
 
         history `shouldBe` [
             ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "immediate",
-            ExecutedAction (CurrentTime (read "1970-01-01 00:00:30")) "every",
-            ExecutedAction (CurrentTime (read "1970-01-01 00:01:00")) "every",
-            ExecutedAction (CurrentTime (read "1970-01-01 00:01:30")) "every",
-            ExecutedAction (CurrentTime (read "1970-01-01 00:02:00")) "every",
-            ExecutedAction (CurrentTime (read "1970-01-01 00:02:30")) "every",
-            ExecutedAction (CurrentTime (read "1970-01-01 00:03:00")) "every"
+            ExecutedAction (CurrentTime (read "1970-01-01 00:00:15")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:00:45")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:01:15")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:01:45")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:02:15")) "every",
+            ExecutedAction (CurrentTime (read "1970-01-01 00:02:45")) "every"
           ]
 
     describe "Cron" $
