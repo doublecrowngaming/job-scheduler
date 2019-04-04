@@ -45,11 +45,11 @@ instance Monad m => MonadJobs d (Scheduler SingleThreaded d m) where
   popQueue = do
     jobQueue <- gets stJobQueue
 
-    case PQ.minView jobQueue of
+    case PQ.minViewWithKey jobQueue of
       Nothing -> return Nothing
-      Just (job, newQueue) -> do
+      Just ((time, job), newQueue) -> do
         modify $ \schedulerState -> schedulerState { stJobQueue = newQueue }
-        return (Just job)
+        return $ Just (time, job)
 
   execute = id
 

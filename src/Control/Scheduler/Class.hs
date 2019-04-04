@@ -20,7 +20,7 @@ class (MonadChronometer m, MonadJobs d m) => MonadScheduler d m | m -> d where
 
 class MonadJobs d m | m -> d where
   pushQueue :: ScheduledTime -> Job d -> m ()
-  popQueue  :: m (Maybe (Job d))
+  popQueue  :: m (Maybe (ScheduledTime, Job d))
   execute   :: m () -> m ()
 
 whenJust :: Applicative f => Maybe a -> (a -> f ()) -> f ()
@@ -35,18 +35,15 @@ instance (Monad m, MonadChronometer m, MonadJobs d m) => MonadScheduler d m wher
       pushQueue executesAt (Job task)
 
   react handler = do
-    mbJob <- popQueue
+    mbItem <- popQueue
 
-    whenJust mbJob $ \job -> do
-      mbRunTime <- runAt job <$> now
-
-      whenJust mbRunTime $ \runTime -> do
+    whenJust mbItem $ \(runTime, job) -> do
         sleepUntil runTime
 
         execute (apply job handler)
 
-        mbNextJob <-  nextJob job <$> now
+        mbNextJob <- nextJob job <$> now
 
-        mapM_ schedule mbNextJob
+        whenJust mbNextJob schedule
 
         react handler
