@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 68408bacd66c139e0bbe7de78a3991664535f81bac5d6196224ea9aa50441e88
+-- hash: 5cbf5e42307d36d83b99e6ad84141e2c0167e02d5bdcc425a0fb1bc8f9964588
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -30,6 +30,7 @@ library
       Control.Scheduler.Type
   other-modules:
       Control.Scheduler.Checkpointer.Disk
+      Control.Scheduler.Enrichments.Tracing
       Control.Scheduler.Task.After
       Control.Scheduler.Task.At
       Control.Scheduler.Task.Class
@@ -50,6 +51,7 @@ library
     , monad-logger
     , mtl
     , pqueue
+    , text
     , time
     , transformers
   default-language: Haskell2010
@@ -81,6 +83,7 @@ test-suite spec
     , monad-logger
     , mtl
     , pqueue
+    , text
     , time
     , transformers
   default-language: Haskell2010
