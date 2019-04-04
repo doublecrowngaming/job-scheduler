@@ -22,6 +22,7 @@ class MonadJobs d m | m -> d where
   pushQueue :: ScheduledTime -> Job d -> m ()
   popQueue  :: m (Maybe (ScheduledTime, Job d))
   execute   :: m () -> m ()
+  enumerate :: m [(ScheduledTime, Job d)]
 
 whenJust :: Applicative f => Maybe a -> (a -> f ()) -> f ()
 whenJust Nothing  _      = pure ()

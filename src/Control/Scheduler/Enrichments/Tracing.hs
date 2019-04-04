@@ -9,7 +9,9 @@ module Control.Scheduler.Enrichments.Tracing (
   Tracing,
   withTracing,
   DeepTracing,
-  withDeepTracing
+  withDeepTracing,
+  WorkQueueLogging,
+  withWorkQueueLogging
 ) where
 
 import           Control.Monad.IO.Class  (MonadIO (..))
@@ -48,7 +50,9 @@ instance (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m) => MonadJobs d 
     stack . execute $ unstack action
     logDebugNS "Scheduler:Tracing" "execution succeeded"
 
-withTracing :: (RunnableScheduler r, MonadLogger m) => Scheduler (Tracing r) d m () -> Scheduler r d m ()
+  enumerate = stack enumerate
+
+withTracing :: (MonadJobs d (Scheduler r d m), MonadLogger m) => Scheduler (Tracing r) d m () -> Scheduler r d m ()
 withTracing = unstack
 
 
@@ -76,5 +80,37 @@ instance (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m, Show d) => Mona
     stack . execute $ unstack action
     logDebugNS "Scheduler:DeepTracing" "execution succeeded"
 
-withDeepTracing :: (RunnableScheduler r, MonadIO io) => Scheduler (DeepTracing r) d io () -> Scheduler r d io ()
+  enumerate = stack enumerate
+
+withDeepTracing :: (MonadJobs d (Scheduler r d m), MonadLogger m) => Scheduler (DeepTracing r) d m () -> Scheduler r d m ()
 withDeepTracing = unstack
+
+
+
+newtype WorkQueueLogging r d = WorkQueueLogging { unWorkQueueLogging :: r d }
+
+instance Enrichment (WorkQueueLogging r d) (r d) where
+  enrich = const $ Iso WorkQueueLogging unWorkQueueLogging
+  strip  = Iso unWorkQueueLogging WorkQueueLogging
+
+logWorkQueue :: (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m, Show d) => Scheduler (WorkQueueLogging r) d m ()
+logWorkQueue = do
+  q <- enumerate
+  logDebugNS "Scheduler:WorkQueueLogging" ("current work queue contents: " <> tshow q)
+
+instance (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m, Show d) => MonadJobs d (Scheduler (WorkQueueLogging r) d m) where
+  pushQueue executesAt item = do
+    stack $ pushQueue executesAt item
+    logWorkQueue
+
+  popQueue = do
+    item <- stack popQueue
+    logWorkQueue
+    return item
+
+  execute = stack . execute . unstack
+
+  enumerate = stack enumerate
+
+withWorkQueueLogging :: (MonadJobs d (Scheduler r d m), MonadLogger m) => Scheduler (WorkQueueLogging r) d m () -> Scheduler r d m ()
+withWorkQueueLogging = unstack

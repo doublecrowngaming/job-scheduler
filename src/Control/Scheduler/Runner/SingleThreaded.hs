@@ -53,5 +53,7 @@ instance Monad m => MonadJobs d (Scheduler SingleThreaded d m) where
 
   execute = id
 
+  enumerate = PQ.toList <$> gets stJobQueue
+
 instance RunnableScheduler SingleThreaded where
   runScheduler actions = evalStateT (unScheduler actions) (SingleThreaded PQ.empty Nothing)
