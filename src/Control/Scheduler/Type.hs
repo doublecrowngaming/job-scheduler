@@ -9,37 +9,55 @@ module Control.Scheduler.Type (
   unScheduler,
   stack,
   unstack,
+  embed,
+  withScheduler,
   RunnableScheduler(..),
-  DiskCheckpointing(..)
+  Iso(..),
+  Enrichment(..)
 ) where
 
 import           Control.Monad.Catch        (MonadCatch (..), MonadMask (..),
                                              MonadThrow (..))
 import           Control.Monad.IO.Class     (MonadIO (..))
-import           Control.Monad.State.Strict (MonadState, StateT (..))
+import           Control.Monad.Logger       (MonadLogger)
+import           Control.Monad.State.Strict (MonadState, StateT (..), get)
 import           Control.Monad.Trans.Class  (MonadTrans (..))
-
 
 newtype Scheduler r d m a = Scheduler { unScheduler :: StateT (r d) m a }
                             deriving (
                               Functor, Applicative, Monad,
                               MonadState (r d),
-                              MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans
+                              MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans,
+                              MonadLogger
                             )
 
-newtype DiskCheckpointing r d = DiskCheckpointing { unDiskCheckpointing :: r d }
+data Iso a b = Iso { forward :: a -> b, reverse :: b -> a }
 
-stack :: Monad m => Scheduler r d m a -> Scheduler (DiskCheckpointing r) d m a
-stack (Scheduler rStateT) = Scheduler (xform rStateT)
-  where
-    xform :: Monad m => StateT (r d) m a -> StateT (DiskCheckpointing r d) m a
-    xform (StateT s1mas1) = StateT $ (fmap . fmap) DiskCheckpointing . s1mas1 . unDiskCheckpointing
+inverse :: Iso a b -> Iso b a
+inverse (Iso f r) = Iso r f
 
-unstack :: Monad m => Scheduler (DiskCheckpointing r) d m a -> Scheduler r d m a
-unstack (Scheduler dcStateT) = Scheduler (unxform dcStateT)
-  where
-    unxform :: Monad m => StateT (DiskCheckpointing r d) m a -> StateT (r d) m a
-    unxform (StateT s2mas2) = StateT $ (fmap . fmap) unDiskCheckpointing . s2mas2 . DiskCheckpointing
+class Enrichment composite base where
+  enrich :: composite -> Iso base composite
+  strip  :: Iso composite base
+
+withStateT' :: Functor m => Iso s1 s2 -> StateT s1 m a -> StateT s2 m a
+withStateT' (Iso fwd rev) (StateT s1mas1) = StateT $ (fmap . fmap) fwd . s1mas1 . rev
+
+withScheduler :: Functor m => Iso (s1 d) (s2 d) -> Scheduler s1 d m a -> Scheduler s2 d m a
+withScheduler iso = Scheduler . withStateT' iso . unScheduler
+
+stack :: (Enrichment (k r d) (r d), Monad m) => Scheduler r d m a -> Scheduler (k r) d m a
+stack action = do
+  state <- get
+  withScheduler (enrich state) action
+
+unstack :: (Enrichment (k r d) (r d), Monad m) => Scheduler (k r) d m a -> Scheduler r d m a
+unstack = withScheduler strip
+
+embed :: (Enrichment (k r d) (r d), Monad m) => (r d -> k r d) -> Scheduler (k r) d m a -> Scheduler r d m a
+embed mkComposite action = do
+  composite <- mkComposite <$> get
+  withScheduler (inverse $ enrich composite) action
 
 class RunnableScheduler r where
   runScheduler :: Monad m => Scheduler r d m () -> m ()
