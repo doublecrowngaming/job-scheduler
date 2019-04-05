@@ -107,7 +107,9 @@ instance (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m, Show d) => Mona
     logWorkQueue
     return item
 
-  execute = stack . execute . unstack
+  execute action = do
+    stack . execute $ unstack action
+    logWorkQueue
 
   enumerate = stack enumerate
 

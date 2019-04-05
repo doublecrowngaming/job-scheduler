@@ -28,30 +28,32 @@ setSchedulerEndTime :: Monad m => ScheduledTime -> Scheduler SingleThreaded d m 
 setSchedulerEndTime endTime = modify $ \schedulerState@SingleThreaded{..} ->
                                           schedulerState { stEndTime = Just endTime }
 
+stInsert :: Monad m => ScheduledTime -> Job d -> Scheduler SingleThreaded d m ()
+stInsert executesAt item =
+  modify $ \schedulerState@SingleThreaded{..} ->
+    schedulerState {
+      stJobQueue = PQ.insert executesAt item stJobQueue
+    }
+
+stPeek :: Monad m => Scheduler SingleThreaded d m (Maybe (ScheduledTime, Job d))
+stPeek = do
+  jobQueue <- gets stJobQueue
+  return (fst <$> PQ.minViewWithKey jobQueue)
+
+stDrop :: Monad m => Scheduler SingleThreaded d m ()
+stDrop = modify $ \schedulerState@SingleThreaded{..} -> schedulerState { stJobQueue = PQ.deleteMin stJobQueue }
+
 instance Monad m => MonadJobs d (Scheduler SingleThreaded d m) where
   pushQueue executesAt item = do
     mbEndTime <- gets stEndTime
 
     case mbEndTime of
-      Nothing      -> insertJob
-      Just endTime -> when (executesAt <= endTime) insertJob
+      Nothing      -> stInsert executesAt item
+      Just endTime -> when (executesAt <= endTime) (stInsert executesAt item)
 
-    where
-      insertJob = modify $ \schedulerState@SingleThreaded{..} ->
-                              schedulerState {
-                                stJobQueue = PQ.insert executesAt item stJobQueue
-                              }
+  popQueue = stPeek
 
-  popQueue = do
-    jobQueue <- gets stJobQueue
-
-    case PQ.minViewWithKey jobQueue of
-      Nothing -> return Nothing
-      Just ((time, job), newQueue) -> do
-        modify $ \schedulerState -> schedulerState { stJobQueue = newQueue }
-        return $ Just (time, job)
-
-  execute = id
+  execute action = action >> stDrop
 
   enumerate = PQ.toList <$> gets stJobQueue
 
