@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d4e76ec3e3c97491c78a28dba750bed3823c483cf9b5d4469136c9750124765e
+-- hash: 487aa2a361b26d458b0cc6f8b313a3c585442b5635d43e6894107b610f705ef2
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -25,17 +25,18 @@ library
       Control.Scheduler.Chronometer
       Control.Scheduler.Class
       Control.Scheduler.Runner.SingleThreaded
-      Control.Scheduler.Task
+      Control.Scheduler.Schedule
       Control.Scheduler.Time
       Control.Scheduler.Type
   other-modules:
+      Control.Scheduler.Enrichments.Checkpointing
       Control.Scheduler.Enrichments.Tracing
-      Control.Scheduler.Task.After
-      Control.Scheduler.Task.At
-      Control.Scheduler.Task.Class
-      Control.Scheduler.Task.Cron
-      Control.Scheduler.Task.Every
-      Control.Scheduler.Task.Immediately
+      Control.Scheduler.Schedule.After
+      Control.Scheduler.Schedule.At
+      Control.Scheduler.Schedule.Class
+      Control.Scheduler.Schedule.Cron
+      Control.Scheduler.Schedule.Every
+      Control.Scheduler.Schedule.Immediately
       Paths_job_scheduler
   hs-source-dirs:
       src
@@ -59,11 +60,11 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Control.Scheduler.Task.AfterSpec
-      Control.Scheduler.Task.AtSpec
-      Control.Scheduler.Task.CronSpec
-      Control.Scheduler.Task.EverySpec
-      Control.Scheduler.Task.ImmediatelySpec
+      Control.Scheduler.Schedule.AfterSpec
+      Control.Scheduler.Schedule.AtSpec
+      Control.Scheduler.Schedule.CronSpec
+      Control.Scheduler.Schedule.EverySpec
+      Control.Scheduler.Schedule.ImmediatelySpec
       Control.Scheduler.TimeSpec
       Control.SchedulerSpec
       Paths_job_scheduler

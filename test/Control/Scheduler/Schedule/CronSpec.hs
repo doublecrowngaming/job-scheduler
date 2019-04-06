@@ -1,13 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Control.Scheduler.Task.EverySpec (spec) where
+module Control.Scheduler.Schedule.CronSpec (spec) where
 
-import           Control.Scheduler.Task
-import           Control.Scheduler.Time (CurrentTime (..), Delay, Interval,
-                                         ScheduledTime (..), addTime)
+import           Control.Scheduler.Schedule
+import           Control.Scheduler.Time     (CurrentTime (..), Delay, Interval,
+                                             ScheduledTime (..), addTime,
+                                             replaceTime)
 import           Data.Functor.Identity
-import           Data.Maybe             (isNothing)
-import           Data.Time.Clock        (UTCTime (..))
+import           Data.Time.Clock            (UTCTime (..))
+import           System.Cron                (daily)
 
 import           Test.Hspec
 import           Test.QuickCheck
@@ -32,16 +33,13 @@ instance Arbitrary ArbitraryInterval where
 
 spec :: Spec
 spec =
-  describe "Every" $ do
+  describe "Cron" $ do
     it "always runs after a given delay" $ property $
-      \(ArbitraryTime now, ArbitraryInterval interval, ArbitraryDelay delay) ->
-        let now' = CurrentTime now
+      \(ArbitraryTime now) ->
+        let now'       = CurrentTime now
+            plusOneDay = now `addTime` (86400 :: Delay)
         in
-          runAt (Every delay interval ()) now' === Just (ScheduledTime (now `addTime` delay))
+          runAt (Cron daily) now' === Just (ScheduledTime $ replaceTime plusOneDay 0)
 
     it "produces a successor job" $
       pendingWith "No way to check equality through an existential type"
-
-    it "applies routines against its contents" $ property $
-      \(num :: Int,  ArbitraryInterval interval, ArbitraryDelay delay) ->
-        apply (Every delay interval num) (\x -> pure $ x + 1) === Identity (num + 1)

@@ -11,40 +11,40 @@ module Control.Scheduler.Class (
 ) where
 
 import           Control.Scheduler.Chronometer (MonadChronometer (..))
-import           Control.Scheduler.Task.Class  (Job (..), Task (..))
+import           Control.Scheduler.Schedule    (Job (..), Schedule (..))
 import           Control.Scheduler.Time        (ScheduledTime (..))
 
 class (MonadChronometer m, MonadJobs d m) => MonadScheduler d m | m -> d where
-  schedule :: (Task t, TaskData t ~ d) => t -> m ()
+  schedule :: Schedule t => t -> d -> m ()
   react    :: (d -> m ()) -> m ()
 
 class MonadJobs d m | m -> d where
-  pushQueue :: ScheduledTime -> Job d -> m ()
-  popQueue  :: m (Maybe (ScheduledTime, Job d))
+  pushQueue :: ScheduledTime -> (Job, d) -> m ()
+  popQueue  :: m (Maybe (ScheduledTime, Job, d))
   execute   :: m () -> m ()
-  enumerate :: m [(ScheduledTime, Job d)]
+  enumerate :: m [(ScheduledTime, (Job, d))]
 
 whenJust :: Applicative f => Maybe a -> (a -> f ()) -> f ()
 whenJust Nothing  _      = pure ()
 whenJust (Just x) action = action x
 
 instance (Monad m, MonadChronometer m, MonadJobs d m) => MonadScheduler d m where
-  schedule task = do
+  schedule task datum = do
     mbExecutesAt <- runAt task <$> now
 
     whenJust mbExecutesAt $ \executesAt ->
-      pushQueue executesAt (Job task)
+      pushQueue executesAt (Job task, datum)
 
   react handler = do
     mbItem <- popQueue
 
-    whenJust mbItem $ \(runTime, job) -> do
+    whenJust mbItem $ \(runTime, job, datum) -> do
         sleepUntil runTime
 
-        execute (apply job handler)
+        execute (handler datum)
 
         mbNextJob <- nextJob job <$> now
 
-        whenJust mbNextJob schedule
+        whenJust mbNextJob (`schedule` datum)
 
         react handler

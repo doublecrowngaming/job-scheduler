@@ -9,7 +9,7 @@ import           Control.Monad.Writer
 import           Control.Scheduler.Chronometer
 import           Control.Scheduler.Class
 import           Control.Scheduler.Runner.SingleThreaded
-import           Control.Scheduler.Task
+import           Control.Scheduler.Schedule
 import           Control.Scheduler.Time                  (CurrentTime (..),
                                                           ScheduledTime (..))
 import           Control.Scheduler.Type
@@ -57,7 +57,7 @@ spec = do
   describe "Scheduler" $
     it "runs jobs until it has drained its work queue" $ do
       let history = testScheduler $ do
-                      schedule $ Immediately "foo"
+                      schedule Immediately "foo"
 
                       react $ \datum -> do
                         now' <- now
@@ -67,11 +67,11 @@ spec = do
           ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "foo"
         ]
 
-  describe "Task types" $ do
+  describe "Schedule types" $ do
     describe "Immediately" $
       it "runs as soon as the reactor starts" $ do
         let history = testScheduler $ do
-                        schedule $ Immediately "foobar"
+                        schedule Immediately "foobar"
 
                         sleepUntil (ScheduledTime (read "1980-01-01 12:34:56"))
 
@@ -85,8 +85,8 @@ spec = do
     describe "At" $
       it "runs at a given time" $ do
         let history = testScheduler $ do
-                        schedule $ Immediately "immediate"
-                        schedule $ At (ScheduledTime (read "1970-01-02 03:04:05")) "atjob"
+                        schedule Immediately "immediate"
+                        schedule (At (ScheduledTime (read "1970-01-02 03:04:05"))) "atjob"
 
                         loggingReactor
 
@@ -98,8 +98,8 @@ spec = do
     describe "After" $
       it "runs after a given delay" $ do
         let history = testScheduler $ do
-                        schedule $ Immediately "immediate"
-                        schedule $ After 30 "afterjob"
+                        schedule Immediately "immediate"
+                        schedule (After 30) "afterjob"
 
                         loggingReactor
 
@@ -112,8 +112,8 @@ spec = do
       it "runs every N seconds" $ do
         let history = testScheduler $ do
                         setSchedulerEndTime (ScheduledTime (read "1970-01-01 00:03:00"))
-                        schedule $ Immediately "immediate"
-                        schedule $ Every 15 30 "every"
+                        schedule Immediately "immediate"
+                        schedule (Every 15 30) "every"
 
                         loggingReactor
 
@@ -131,7 +131,7 @@ spec = do
       it "runs according to a cron schedule" $ do
         let history = testScheduler $ do
                         setSchedulerEndTime (ScheduledTime (read "1980-01-01 00:00:00"))
-                        schedule $ Cron yearly "cron"
+                        schedule (Cron yearly) "cron"
 
                         loggingReactor
 
