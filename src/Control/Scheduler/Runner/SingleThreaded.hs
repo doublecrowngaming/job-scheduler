@@ -11,8 +11,8 @@ module Control.Scheduler.Runner.SingleThreaded (
 
 import           Control.Monad              (when)
 import           Control.Monad.State.Strict (evalStateT, gets, modify)
-import           Control.Scheduler.Class    (MonadJobs (..))
-import           Control.Scheduler.Schedule (Job (..))
+import           Control.Scheduler.Class    (Job (..), MonadJobs (..))
+import           Control.Scheduler.Schedule (Schedule)
 import           Control.Scheduler.Time     (ScheduledTime (..))
 import           Control.Scheduler.Type     (RunnableScheduler (..), Scheduler,
                                              unScheduler)
@@ -20,7 +20,7 @@ import qualified Data.PQueue.Prio.Min       as PQ
 
 
 data SingleThreaded d = SingleThreaded {
-  stJobQueue :: PQ.MinPQueue ScheduledTime (Job, d),
+  stJobQueue :: PQ.MinPQueue ScheduledTime (Job d),
   stEndTime  :: Maybe ScheduledTime
 }
 
@@ -28,17 +28,17 @@ setSchedulerEndTime :: Monad m => ScheduledTime -> Scheduler SingleThreaded d m 
 setSchedulerEndTime endTime = modify $ \schedulerState@SingleThreaded{..} ->
                                           schedulerState { stEndTime = Just endTime }
 
-stInsert :: Monad m => ScheduledTime -> (Job, d) -> Scheduler SingleThreaded d m ()
+stInsert :: Monad m => ScheduledTime -> Job d -> Scheduler SingleThreaded d m ()
 stInsert executesAt item =
   modify $ \schedulerState@SingleThreaded{..} ->
     schedulerState {
       stJobQueue = PQ.insert executesAt item stJobQueue
     }
 
-stPeek :: Monad m => Scheduler SingleThreaded d m (Maybe (ScheduledTime, Job, d))
+stPeek :: Monad m => Scheduler SingleThreaded d m (Maybe (ScheduledTime, Job d))
 stPeek = do
   jobQueue <- gets stJobQueue
-  return ((\(a, (b, c)) -> (a, b, c)) . fst <$> PQ.minViewWithKey jobQueue)
+  return (fst <$> PQ.minViewWithKey jobQueue)
 
 stDrop :: Monad m => Scheduler SingleThreaded d m ()
 stDrop = modify $ \schedulerState@SingleThreaded{..} -> schedulerState { stJobQueue = PQ.deleteMin stJobQueue }

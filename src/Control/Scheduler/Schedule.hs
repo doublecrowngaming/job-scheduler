@@ -1,38 +1,37 @@
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE StandaloneDeriving #-}
-
 module Control.Scheduler.Schedule (
-  module Control.Scheduler.Schedule,
-  module Control.Scheduler.Schedule.Class,
-  module Control.Scheduler.Schedule.After,
-  module Control.Scheduler.Schedule.At,
-  module Control.Scheduler.Schedule.Cron,
-  module Control.Scheduler.Schedule.Every,
-  module Control.Scheduler.Schedule.Immediately
+  Schedule(After, At, Cron, Every, Immediately),
+  runAt,
+  nextJob
 ) where
 
-import           Control.Scheduler.Schedule.After
-import           Control.Scheduler.Schedule.At
-import           Control.Scheduler.Schedule.Class
-import           Control.Scheduler.Schedule.Cron
-import           Control.Scheduler.Schedule.Every
-import           Control.Scheduler.Schedule.Immediately
+import           Control.Scheduler.Time (CurrentTime (..), Delay (..),
+                                         Interval (..), ScheduledTime (..),
+                                         addTime)
+import           System.Cron            (CronSchedule, nextMatch,
+                                         parseCronSchedule,
+                                         serializeCronSchedule)
 
-import           Data.Aeson                             (FromJSON (..),
-                                                         ToJSON (..), object,
-                                                         (.=))
+data Schedule =
+    After Delay
+  | At    ScheduledTime
+  | Cron  CronSchedule
+  | Every Delay Interval
+  | Every'      Interval
+  | Immediately
+  deriving (Show, Eq)
 
-data Job where
-  Job :: Schedule t => t -> Job
+runAt :: Schedule -> CurrentTime -> Maybe ScheduledTime
+runAt (After delay)              now = Just $ now `addTime` delay
+runAt (At scheduledTime)         _   = Just scheduledTime
+runAt (Cron sched) (CurrentTime now) = ScheduledTime <$> nextMatch sched now
+runAt (Every  delay _       )    now = Just $ now `addTime` delay
+runAt (Every'       interval)    now = Just $ now `addTime` interval
+runAt Immediately (CurrentTime now)  = Just $ ScheduledTime now
 
-deriving instance Show Job
-
-instance ToJSON Job where
-  toJSON = undefined
-
-instance FromJSON Job where
-  parseJSON = undefined
-
-instance Schedule Job where
-  runAt   (Job schedule)      = runAt schedule
-  nextJob (Job schedule) time = Job <$> nextJob schedule time
+nextJob :: Schedule -> CurrentTime -> Maybe Schedule
+nextJob (After _)           _ = Nothing
+nextJob Immediately         _ = Nothing
+nextJob (Every  _ interval) _ = Just $ Every' interval
+nextJob (Every'   interval) _ = Just $ Every' interval
+nextJob (Cron s)            _ = Just $ Cron s
+nextJob (At _)              _ = Nothing

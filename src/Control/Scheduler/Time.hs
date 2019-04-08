@@ -15,14 +15,13 @@ module Control.Scheduler.Time (
   next
 ) where
 
-import           Data.Aeson      (FromJSON, ToJSON)
 import           Data.Time.Clock (DiffTime, NominalDiffTime, UTCTime (..),
                                   addUTCTime, diffUTCTime)
 
-newtype Delay         = Delay         NominalDiffTime deriving (Eq, Show, Num, Ord, ToJSON, FromJSON)
-newtype Interval      = Interval      NominalDiffTime deriving (Eq, Show, Num, Ord, ToJSON, FromJSON)
+newtype Delay         = Delay         NominalDiffTime deriving (Eq, Show, Num, Ord)
+newtype Interval      = Interval      NominalDiffTime deriving (Eq, Show, Num, Ord)
 newtype ReferenceTime = ReferenceTime UTCTime         deriving (Eq, Show)
-newtype ScheduledTime = ScheduledTime UTCTime         deriving (Eq, Show, Ord, ToJSON, FromJSON)
+newtype ScheduledTime = ScheduledTime UTCTime         deriving (Eq, Show, Ord)
 newtype CurrentTime   = CurrentTime   UTCTime         deriving (Eq, Show)
 
 addDelay :: UTCTime -> Delay -> UTCTime

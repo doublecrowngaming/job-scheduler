@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 487aa2a361b26d458b0cc6f8b313a3c585442b5635d43e6894107b610f705ef2
+-- hash: 37eec4409da9a64ae409d49bae15a38da29ec1ad67d1fae2d4834d42a5b1e005
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -29,14 +29,7 @@ library
       Control.Scheduler.Time
       Control.Scheduler.Type
   other-modules:
-      Control.Scheduler.Enrichments.Checkpointing
       Control.Scheduler.Enrichments.Tracing
-      Control.Scheduler.Schedule.After
-      Control.Scheduler.Schedule.At
-      Control.Scheduler.Schedule.Class
-      Control.Scheduler.Schedule.Cron
-      Control.Scheduler.Schedule.Every
-      Control.Scheduler.Schedule.Immediately
       Paths_job_scheduler
   hs-source-dirs:
       src
@@ -60,11 +53,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Control.Scheduler.Schedule.AfterSpec
-      Control.Scheduler.Schedule.AtSpec
-      Control.Scheduler.Schedule.CronSpec
-      Control.Scheduler.Schedule.EverySpec
-      Control.Scheduler.Schedule.ImmediatelySpec
+      Control.Scheduler.ScheduleSpec
       Control.Scheduler.TimeSpec
       Control.SchedulerSpec
       Paths_job_scheduler
