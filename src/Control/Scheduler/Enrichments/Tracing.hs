@@ -38,11 +38,16 @@ instance (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m) => MonadJobs d 
     stack $ pushQueue executesAt item
     logDebugNS "Scheduler:Tracing" "executed pushQueue"
 
-  popQueue = do
-    logDebugNS "Scheduler:Tracing" "attempting popQueue"
-    x <- stack popQueue
-    logDebugNS "Scheduler:Tracing" "executed popQueue"
+  peekQueue = do
+    logDebugNS "Scheduler:Tracing" "attempting peekQueue"
+    x <- stack peekQueue
+    logDebugNS "Scheduler:Tracing" "executed peekQueue"
     return x
+
+  dropQueue = do
+    logDebugNS "Scheduler:Tracing" "attempting dropQueue"
+    stack dropQueue
+    logDebugNS "Scheduler:Tracing" "executed dropQueue"
 
   execute action = do
     logDebugNS "Scheduler:Tracing" "attempting execute"
@@ -68,11 +73,19 @@ instance (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m, Show d) => Mona
     stack $ pushQueue executesAt item
     logDebugNS "Scheduler:DeepTracing" ("arranged for " <> tshow item <> " to be executed at " <> tshow executesAt)
 
-  popQueue = do
+  peekQueue = do
     logDebugNS "Scheduler:DeepTracing" "retrieving next work item"
-    item <- stack popQueue
+    item <- stack peekQueue
     logDebugNS "Scheduler:DeepTracing" ("retrieved " <> tshow item)
     return item
+
+  dropQueue = do
+    logDebugNS "Scheduler:DeepTracing" "dropping head-of-line work item"
+
+    item <- stack peekQueue
+    stack dropQueue
+
+    logDebugNS "Scheduler:DeepTracing" ("dropped " <> tshow item)
 
   execute action = do
     logDebugNS "Scheduler:DeepTracing" "attempting to execute associated action"
@@ -102,10 +115,14 @@ instance (Monad m, MonadJobs d (Scheduler r d m), MonadLogger m, Show d) => Mona
     stack $ pushQueue executesAt item
     logWorkQueue
 
-  popQueue = do
-    item <- stack popQueue
+  peekQueue = do
+    item <- stack peekQueue
     logWorkQueue
     return item
+
+  dropQueue = do
+    stack dropQueue
+    logWorkQueue
 
   execute action = do
     stack . execute $ unstack action
