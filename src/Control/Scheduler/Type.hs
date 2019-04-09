@@ -10,6 +10,7 @@ module Control.Scheduler.Type (
   stack,
   unstack,
   embed,
+  embedM,
   withScheduler,
   RunnableScheduler(..),
   Iso(..),
@@ -22,13 +23,14 @@ import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.Logger       (MonadLogger)
 import           Control.Monad.State.Strict (MonadState, StateT (..), get)
 import           Control.Monad.Trans.Class  (MonadTrans (..))
+import           Prometheus                 (MonadMonitor)
 
 newtype Scheduler r d m a = Scheduler { unScheduler :: StateT (r d) m a }
                             deriving (
                               Functor, Applicative, Monad,
                               MonadState (r d),
                               MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans,
-                              MonadLogger
+                              MonadLogger, MonadMonitor
                             )
 
 data Iso a b = Iso { forward :: a -> b, reverse :: b -> a }
@@ -57,6 +59,11 @@ unstack = withScheduler strip
 embed :: (Enrichment (k r d) (r d), Monad m) => (r d -> k r d) -> Scheduler (k r) d m a -> Scheduler r d m a
 embed mkComposite action = do
   composite <- mkComposite <$> get
+  withScheduler (inverse $ enrich composite) action
+
+embedM :: (Enrichment (k r d) (r d), Monad m) => (r d -> m (k r d)) -> Scheduler (k r) d m a -> Scheduler r d m a
+embedM mkCompositeM action = do
+  composite <- (lift . mkCompositeM) =<< get
   withScheduler (inverse $ enrich composite) action
 
 class RunnableScheduler r where

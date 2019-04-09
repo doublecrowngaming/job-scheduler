@@ -20,6 +20,7 @@ dependencies:
   - mtl
   - monad-logger
   - exceptions
+  - prometheus-client >= 1.0.0 && < 2
 
 library:
   source-dirs: src
