@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass         #-}
+{-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -15,11 +17,14 @@ module Control.Scheduler.Class (
 import           Control.Scheduler.Chronometer (MonadChronometer (..))
 import           Control.Scheduler.Schedule    (Schedule (..), nextJob, runAt)
 import           Control.Scheduler.Time        (ScheduledTime (..))
+import           Data.Aeson                    (FromJSON, ToJSON)
+import           GHC.Generics                  (Generic)
+
 
 data Job d = Job {
   jobSchedule :: Schedule,
   jobWorkUnit :: d
-} deriving Show
+} deriving (Show, Generic, ToJSON, FromJSON)
 
 class (MonadChronometer m, MonadJobs d m) => MonadScheduler d m | m -> d where
   schedule :: Schedule -> d -> m ()
@@ -27,7 +32,7 @@ class (MonadChronometer m, MonadJobs d m) => MonadScheduler d m | m -> d where
 
 class MonadJobs d m | m -> d where
   pushQueue :: ScheduledTime -> Job d -> m ()
-  peekQueue  :: m (Maybe (ScheduledTime, Job d))
+  peekQueue :: m (Maybe (ScheduledTime, Job d))
   dropQueue :: m ()
   execute   :: m () -> m ()
   enumerate :: m [(ScheduledTime, Job d)]

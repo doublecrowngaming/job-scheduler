@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric  #-}
+
 module Control.Scheduler.Schedule (
   Schedule(After, At, Cron, Every, Immediately),
   runAt,
@@ -7,9 +10,22 @@ module Control.Scheduler.Schedule (
 import           Control.Scheduler.Time (CurrentTime (..), Delay (..),
                                          Interval (..), ScheduledTime (..),
                                          addTime)
+import           Data.Aeson             (FromJSON (..), ToJSON (..), withText)
+import           GHC.Generics           (Generic)
 import           System.Cron            (CronSchedule, nextMatch,
                                          parseCronSchedule,
                                          serializeCronSchedule)
+
+
+instance ToJSON CronSchedule where
+  toJSON sched = toJSON $ serializeCronSchedule sched
+
+instance FromJSON CronSchedule where
+  parseJSON = withText "Cron expression" $ \text ->
+                case parseCronSchedule text of
+                  Left err  -> fail err
+                  Right val -> return val
+
 
 data Schedule =
     After Delay
@@ -18,7 +34,7 @@ data Schedule =
   | Every Delay Interval
   | Every'      Interval
   | Immediately
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 runAt :: Schedule -> CurrentTime -> Maybe ScheduledTime
 runAt (After delay)              now = Just $ now `addTime` delay

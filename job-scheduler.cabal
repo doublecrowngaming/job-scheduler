@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 37eec4409da9a64ae409d49bae15a38da29ec1ad67d1fae2d4834d42a5b1e005
+-- hash: 524b03da8c055cab220a5e5d83085321961581645ae446b8dee9181008996afc
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -29,6 +29,7 @@ library
       Control.Scheduler.Time
       Control.Scheduler.Type
   other-modules:
+      Control.Scheduler.Enrichments.Checkpointing
       Control.Scheduler.Enrichments.Tracing
       Paths_job_scheduler
   hs-source-dirs:
@@ -53,6 +54,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Control.Scheduler.Enrichments.CheckpointingSpec
       Control.Scheduler.ScheduleSpec
       Control.Scheduler.TimeSpec
       Control.SchedulerSpec
@@ -72,6 +74,7 @@ test-suite spec
     , monad-logger
     , mtl
     , pqueue
+    , temporary
     , text
     , time
     , transformers

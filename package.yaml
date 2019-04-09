@@ -39,3 +39,4 @@ tests:
     dependencies:
       - job-scheduler
       - hspec >=2.0.0
+      - temporary
