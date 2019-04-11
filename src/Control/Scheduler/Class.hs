@@ -26,7 +26,7 @@ data Job d = Job {
   jobWorkUnit :: d
 } deriving (Show, Generic, ToJSON, FromJSON)
 
-class (MonadChronometer m, MonadJobs d m) => MonadScheduler d m | m -> d where
+class MonadScheduler d m | m -> d where
   schedule :: Schedule -> d -> m ()
   react    :: (d -> m ()) -> m ()
 
