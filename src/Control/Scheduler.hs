@@ -11,7 +11,7 @@ module Control.Scheduler (
 
 
 import           Control.Scheduler.Chronometer               (MonadChronometer (..))
-import           Control.Scheduler.Class                     (MonadScheduler (..))
+import           Control.Scheduler.Class                     (MonadJobs, MonadScheduler (..))
 import           Control.Scheduler.Enrichments.Checkpointing
 import           Control.Scheduler.Enrichments.Prometheus
 import           Control.Scheduler.Enrichments.Tracing
