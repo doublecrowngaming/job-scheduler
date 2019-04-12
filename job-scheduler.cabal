@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f903825d21495d67efc9d55326d3576715f743a8189b0baf52bca32ab2a35981
+-- hash: 214927fe939a9ce52ddd1bdfff0afd2f314bdf140eab9478a11b49f2f932e85a
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -40,7 +40,6 @@ library
       QuickCheck
     , aeson
     , base >=4.7 && <5
-    , bytestring
     , containers
     , cron
     , exceptions
@@ -69,7 +68,6 @@ test-suite spec
       QuickCheck
     , aeson
     , base >=4.7 && <5
-    , bytestring
     , containers
     , cron
     , exceptions

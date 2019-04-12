@@ -37,13 +37,7 @@ instance Enrichment (Prometheus r d) (r d) where
                                                 })
 
 initializeMetrics :: (MonadIO m, MonadJobs d (Scheduler r d m)) => r d -> m (Prometheus r d)
-initializeMetrics base = do
-  let queueDepthMetric   = gauge   (Info "scheduler_queue_depth"   "Scheduler work queue depth")
-      jobsAddedMetric    = counter (Info "scheduler_jobs_added"    "Number of jobs added to work queue")
-      jobsPeekedMetric   = counter (Info "scheduler_jobs_peeked"   "Number of times the head of the queue has been looked at")
-      jobsDroppedMetric  = counter (Info "scheduler_jobs_deleted"  "Number of jobs removed from the work queue")
-      jobsExecutedMetric = counter (Info "scheduler_jobs_executed" "Number of jobs executed")
-
+initializeMetrics base =
   Prometheus
     <$> pure base
     <*> register queueDepthMetric
@@ -51,6 +45,13 @@ initializeMetrics base = do
     <*> register jobsPeekedMetric
     <*> register jobsDroppedMetric
     <*> register jobsExecutedMetric
+
+  where
+    queueDepthMetric   = gauge   (Info "scheduler_queue_depth"   "Scheduler work queue depth")
+    jobsAddedMetric    = counter (Info "scheduler_jobs_added"    "Number of jobs added to work queue")
+    jobsPeekedMetric   = counter (Info "scheduler_jobs_peeked"   "Number of times the head of the queue has been looked at")
+    jobsDroppedMetric  = counter (Info "scheduler_jobs_deleted"  "Number of jobs removed from the work queue")
+    jobsExecutedMetric = counter (Info "scheduler_jobs_executed" "Number of jobs executed")
 
 trackQueueDepth :: (MonadMonitor m, MonadJobs d (Scheduler r d m)) => Scheduler (Prometheus r) d m ()
 trackQueueDepth = do
