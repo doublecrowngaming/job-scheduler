@@ -26,15 +26,17 @@ data Job d = Job {
   jobWorkUnit :: d
 } deriving (Show, Generic, ToJSON, FromJSON)
 
-class MonadScheduler d m | m -> d where
+class MonadJobs d m => MonadScheduler d m | m -> d where
   schedule :: Schedule -> d -> m ()
-  react    :: (d -> m ()) -> m ()
+  react    :: (d -> ExecutionMonad m ()) -> m ()
 
 class MonadJobs d m | m -> d where
+  type ExecutionMonad m :: * -> *
+
   pushQueue :: ScheduledTime -> Job d -> m ()
   peekQueue :: m (Maybe (ScheduledTime, Job d))
   dropQueue :: m ()
-  execute   :: m () -> m ()
+  execute   :: ExecutionMonad m () -> m ()
   enumerate :: m [(ScheduledTime, Job d)]
 
 whenJust :: Applicative f => Maybe a -> (a -> f ()) -> f ()
@@ -52,15 +54,15 @@ instance (Monad m, MonadChronometer m, MonadJobs d m) => MonadScheduler d m wher
     mbItem <- peekQueue
 
     whenJust mbItem $ \(runTime, Job{..}) -> do
-        sleepUntil runTime
-        now' <- now
+      sleepUntil runTime
+      now' <- now
 
-        execute (handler jobWorkUnit)
+      execute (handler jobWorkUnit)
 
-        dropQueue
+      dropQueue
 
-        whenJust
-          (nextJob jobSchedule now')
-          (`schedule` jobWorkUnit)
+      whenJust
+        (nextJob jobSchedule now')
+        (`schedule` jobWorkUnit)
 
-        react handler
+      react handler

@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Control.Scheduler.Runner.SingleThreaded (
   SingleThreaded,
@@ -12,7 +13,6 @@ module Control.Scheduler.Runner.SingleThreaded (
 import           Control.Monad              (when)
 import           Control.Monad.State.Strict (evalStateT, gets, modify)
 import           Control.Scheduler.Class    (Job (..), MonadJobs (..))
-import           Control.Scheduler.Schedule (Schedule)
 import           Control.Scheduler.Time     (ScheduledTime (..))
 import           Control.Scheduler.Type     (RunnableScheduler (..), Scheduler,
                                              unScheduler)
@@ -32,10 +32,12 @@ stInsert :: Monad m => ScheduledTime -> Job d -> Scheduler SingleThreaded d m ()
 stInsert executesAt item =
   modify $ \schedulerState@SingleThreaded{..} ->
     schedulerState {
-      stJobQueue = PQ.insert executesAt item stJobQueue
+      stJobQueue = PQ.insertBehind executesAt item stJobQueue
     }
 
 instance Monad m => MonadJobs d (Scheduler SingleThreaded d m) where
+  type ExecutionMonad (Scheduler SingleThreaded d m) = Scheduler SingleThreaded d m
+
   pushQueue executesAt item = do
     mbEndTime <- gets stEndTime
 

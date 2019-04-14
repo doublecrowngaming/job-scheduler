@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Control.Scheduler.Enrichments.Prometheus (
   Prometheus,
@@ -12,7 +13,7 @@ import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.State.Strict (gets)
 import           Control.Scheduler.Class    (MonadJobs (..))
 import           Control.Scheduler.Type     (Enrichment (..), Iso (..),
-                                             Scheduler, embedM, stack, unstack)
+                                             Scheduler, stack, unstackM)
 import           Prometheus
 
 
@@ -27,14 +28,6 @@ data Prometheus r d = Prometheus {
 
 instance Enrichment (Prometheus r d) (r d) where
   enrich oldPrometheus = Iso (\x -> oldPrometheus { unPrometheus = x }) unPrometheus
-  strip                = Iso unPrometheus (\x -> Prometheus {
-                                                  unPrometheus  = x,
-                                                  pQueueDepth   = undefined,
-                                                  pJobsAdded    = undefined,
-                                                  pJobsPeeked   = undefined,
-                                                  pJobsDropped  = undefined,
-                                                  pJobsExecuted = undefined
-                                                })
 
 initializeMetrics :: (MonadIO m, MonadJobs d (Scheduler r d m)) => r d -> m (Prometheus r d)
 initializeMetrics base =
@@ -60,6 +53,8 @@ trackQueueDepth = do
 
 
 instance (Monad m, MonadMonitor m, MonadJobs d (Scheduler r d m)) => MonadJobs d (Scheduler (Prometheus r) d m) where
+  type ExecutionMonad (Scheduler (Prometheus r) d m) = ExecutionMonad (Scheduler r d m)
+
   pushQueue executesAt item = do
     stack $ pushQueue executesAt item
 
@@ -77,11 +72,11 @@ instance (Monad m, MonadMonitor m, MonadJobs d (Scheduler r d m)) => MonadJobs d
     incCounter =<< gets pJobsDropped
 
   execute action = do
-    stack . execute $ unstack action
+    stack $ execute action
     trackQueueDepth
     incCounter =<< gets pJobsExecuted
 
   enumerate = stack enumerate
 
 withPrometheus :: (MonadIO io, MonadJobs d (Scheduler r d io)) => Scheduler (Prometheus r) d io () -> Scheduler r d io ()
-withPrometheus = embedM initializeMetrics
+withPrometheus = unstackM initializeMetrics

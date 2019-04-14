@@ -1,11 +1,14 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeApplications           #-}
 
 module Control.SchedulerSpec (spec) where
 
 import           Control.Monad.State
 import           Control.Monad.Writer
+import           Control.Scheduler                       (withCheckpointing,
+                                                          withPrometheus)
 import           Control.Scheduler.Chronometer
 import           Control.Scheduler.Class
 import           Control.Scheduler.Runner.SingleThreaded
@@ -58,13 +61,15 @@ spec = do
     it "runs jobs until it has drained its work queue" $ do
       let history = testScheduler $ do
                       schedule Immediately "foo"
+                      schedule Immediately "bar"
 
                       react $ \datum -> do
                         now' <- now
                         lift $ tell [ExecutedAction now' datum]
 
-      history `shouldMatchList` [
-          ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "foo"
+      history `shouldBe` [
+          ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "foo",
+          ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "bar"
         ]
 
   describe "Schedule types" $ do
@@ -147,3 +152,44 @@ spec = do
             ExecutedAction (CurrentTime (read "1979-01-01 00:00:00")) "cron",
             ExecutedAction (CurrentTime (read "1980-01-01 00:00:00")) "cron"
           ]
+
+  describe "SingleThreaded" $
+    it "allows react to schedule a new job" $ do
+      let history = testScheduler $ do
+                      schedule Immediately "foo"
+
+                      react $ \datum -> do
+                        now' <- now
+                        lift $ tell [ExecutedAction now' datum]
+
+                        case datum of
+                          "foo" -> schedule Immediately "bar"
+                          _     -> return ()
+
+      history `shouldBe` [
+          ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "foo",
+          ExecutedAction (CurrentTime (read "1970-01-01 00:00:00")) "bar"
+        ]
+
+
+  describe "Prometheus SingleThreaded" $
+    it "allows react to schedule a new job" $ do
+      runScheduler @SingleThreaded $ withPrometheus $ do
+                  schedule Immediately "foo"
+
+                  react $ \case
+                    "foo" -> schedule Immediately "bar"
+                    _     -> return ()
+
+      True `shouldBe` True
+
+  describe "Checkpointing SingleThreaded" $
+    it "allows react to schedule a new job" $ do
+      runScheduler @SingleThreaded $ withCheckpointing "/tmp/job-scheduler-test" $ do
+                  schedule Immediately "foo"
+
+                  react $ \case
+                    "foo" -> schedule Immediately "bar"
+                    _     -> return ()
+
+      True `shouldBe` True

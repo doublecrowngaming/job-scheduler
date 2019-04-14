@@ -9,8 +9,7 @@ module Control.Scheduler.Type (
   unScheduler,
   stack,
   unstack,
-  embed,
-  embedM,
+  unstackM,
   withScheduler,
   RunnableScheduler(..),
   Iso(..),
@@ -40,7 +39,6 @@ inverse (Iso f r) = Iso r f
 
 class Enrichment composite base where
   enrich :: composite -> Iso base composite
-  strip  :: Iso composite base
 
 withStateT' :: Functor m => Iso s1 s2 -> StateT s1 m a -> StateT s2 m a
 withStateT' (Iso fwd rev) (StateT s1mas1) = StateT $ (fmap . fmap) fwd . s1mas1 . rev
@@ -53,16 +51,13 @@ stack action = do
   state <- get
   withScheduler (enrich state) action
 
-unstack :: (Enrichment (k r d) (r d), Monad m) => Scheduler (k r) d m a -> Scheduler r d m a
-unstack = withScheduler strip
-
-embed :: (Enrichment (k r d) (r d), Monad m) => (r d -> k r d) -> Scheduler (k r) d m a -> Scheduler r d m a
-embed mkComposite action = do
+unstack :: (Enrichment (k r d) (r d), Monad m) => (r d -> k r d) -> Scheduler (k r) d m a -> Scheduler r d m a
+unstack mkComposite action = do
   composite <- mkComposite <$> get
   withScheduler (inverse $ enrich composite) action
 
-embedM :: (Enrichment (k r d) (r d), Monad m) => (r d -> m (k r d)) -> Scheduler (k r) d m a -> Scheduler r d m a
-embedM mkCompositeM action = do
+unstackM :: (Enrichment (k r d) (r d), Monad m) => (r d -> m (k r d)) -> Scheduler (k r) d m a -> Scheduler r d m a
+unstackM mkCompositeM action = do
   composite <- (lift . mkCompositeM) =<< get
   withScheduler (inverse $ enrich composite) action
 
