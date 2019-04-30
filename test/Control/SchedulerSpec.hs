@@ -7,7 +7,7 @@ module Control.SchedulerSpec (spec) where
 
 import           Control.Monad.State
 import           Control.Monad.Writer
-import           Control.Scheduler                       (withCheckpointing,
+import           Control.Scheduler                       (withLocalCheckpointing,
                                                           withPrometheus)
 import           Control.Scheduler.Chronometer
 import           Control.Scheduler.Class
@@ -185,7 +185,7 @@ spec = do
 
   describe "Checkpointing SingleThreaded" $
     it "allows react to schedule a new job" $ do
-      runScheduler @SingleThreaded $ withCheckpointing "/tmp/job-scheduler-test" $ do
+      runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
                   schedule Immediately "foo"
 
                   react $ \case

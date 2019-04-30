@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Control.Scheduler.Enrichments.CheckpointingSpec (spec) where
+module Control.Scheduler.CheckpointingSpec (spec) where
 
 import           Control.Scheduler
 
@@ -12,19 +12,19 @@ import           Test.Hspec
 
 spec :: Spec
 spec = do
-  describe "withCheckpointing" $ do
+  describe "withLocalCheckpointing" $ do
     it "is ok with a non-existent checkpoint file" $
       withSystemTempDirectory "foo" $ \dirpath -> do
         let filepath = dirpath <> "/noexist"
 
-        runScheduler @SingleThreaded (withCheckpointing filepath $ schedule Immediately "foo")
+        runScheduler @SingleThreaded (withLocalCheckpointing filepath $ schedule Immediately "foo")
         True `shouldBe` True
 
     it "is ok with a checkpoint file containing an empty list" $ do
       tmpfile <- emptySystemTempFile "foobar"
       writeFile tmpfile "[]"
 
-      runScheduler @SingleThreaded (withCheckpointing tmpfile $ schedule Immediately "foo")
+      runScheduler @SingleThreaded (withLocalCheckpointing tmpfile $ schedule Immediately "foo")
 
       True `shouldBe` True
 
@@ -36,7 +36,7 @@ spec = do
         let filepath = dirpath <> "/noexist"
 
         runScheduler @SingleThreaded $
-          withCheckpointing filepath $ do
+          withLocalCheckpointing filepath $ do
             onColdStart (schedule Immediately "foo")
 
             react $ \case
@@ -54,7 +54,7 @@ spec = do
         writeFile filepath "[]"
 
         runScheduler @SingleThreaded $
-          withCheckpointing filepath $ do
+          withLocalCheckpointing filepath $ do
             onColdStart (schedule Immediately "foo")
 
             react $ \case
@@ -72,11 +72,11 @@ spec = do
         writeFile filepath "[]"
 
         runScheduler @SingleThreaded $
-          withCheckpointing filepath $
+          withLocalCheckpointing filepath $
             schedule Immediately "bar"
 
         runScheduler @SingleThreaded $
-          withCheckpointing filepath $ do
+          withLocalCheckpointing filepath $ do
             onColdStart (schedule Immediately "foo")
 
             react $ \case

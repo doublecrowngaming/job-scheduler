@@ -19,7 +19,7 @@ module Control.Scheduler.Type (
 import           Control.Monad.Catch        (MonadCatch (..), MonadMask (..),
                                              MonadThrow (..))
 import           Control.Monad.IO.Class     (MonadIO (..))
-import           Control.Monad.Logger       (MonadLogger)
+import           Control.Monad.Logger       (MonadLogger, MonadLoggerIO)
 import           Control.Monad.State.Strict (MonadState, StateT (..), get)
 import           Control.Monad.Trans.Class  (MonadTrans (..))
 import           Prometheus                 (MonadMonitor)
@@ -29,7 +29,7 @@ newtype Scheduler r d m a = Scheduler { unScheduler :: StateT (r d) m a }
                               Functor, Applicative, Monad,
                               MonadState (r d),
                               MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans,
-                              MonadLogger, MonadMonitor
+                              MonadLogger, MonadLoggerIO, MonadMonitor
                             )
 
 data Iso a b = Iso { forward :: a -> b, reverse :: b -> a }
