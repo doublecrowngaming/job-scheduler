@@ -1,0 +1,42 @@
+name: job-scheduler-core
+version: 0.4.0.0
+synopsis: Programmable Job Scheduling
+description: See README
+maintainer: Jesse Kempf
+github: doublecrowngaming/job-scheduler
+
+ghc-options: -Wall -O2
+
+dependencies:
+  - QuickCheck
+  - base >= 4.7 && < 5
+  - bytestring
+  - cron
+  - pqueue
+  - text
+  - time
+  - transformers
+  - containers
+  - mtl
+  - microlens
+  - microlens-platform
+  - monad-logger
+  - exceptions
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Control.Scheduler
+    - Control.Scheduler.Class
+    - Control.Scheduler.Chronometer
+    - Control.Scheduler.Schedule
+    - Control.Scheduler.Time
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - job-scheduler-core
+      - hspec >=2.0.0
+      - temporary
