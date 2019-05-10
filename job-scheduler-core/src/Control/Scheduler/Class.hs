@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# OPTIONS_HADDOCK hide            #-}
 
 module Control.Scheduler.Class (
   MonadScheduler(..),
@@ -22,9 +23,12 @@ data Job d = Job {
   jobWorkUnit :: d
 } deriving Show
 
-class MonadJobs d m => MonadScheduler d m | m -> d where
-  schedule :: Schedule -> d -> m ()
-  react    :: (d -> ExecutionMonad m ()) -> m ()
+-- | MonadScheduler describes a class of Monads that can perform scheduler operations.
+class MonadJobs jobData m => MonadScheduler jobData m | m -> jobData where
+  -- | Schedule a job with the given execution schedule
+  schedule :: Schedule -> jobData -> m ()
+  -- | Handle the job that is now ready for execution
+  react    :: (jobData -> ExecutionMonad m ()) -> m ()
 
 class MonadJobs d m | m -> d where
   type ExecutionMonad m :: * -> *

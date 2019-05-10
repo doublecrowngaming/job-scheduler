@@ -27,6 +27,10 @@ library:
   source-dirs: src
   exposed-modules:
     - Control.Scheduler
+    - Control.Scheduler.Class
+    - Control.Scheduler.Chronometer
+    - Control.Scheduler.Schedule
+    - Control.Scheduler.Time
 tests:
   spec:
     main: Spec.hs

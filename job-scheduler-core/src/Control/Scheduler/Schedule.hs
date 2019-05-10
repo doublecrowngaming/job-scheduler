@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK hide #-}
+
 module Control.Scheduler.Schedule (
   Schedule(After, At, Cron, Every, Immediately),
   runAt,

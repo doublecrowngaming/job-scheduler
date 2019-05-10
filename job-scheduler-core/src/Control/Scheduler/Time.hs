@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# OPTIONS_HADDOCK hide                #-}
 
 module Control.Scheduler.Time (
   Delay(..),

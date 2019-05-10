@@ -7,8 +7,10 @@ module Control.SchedulerSpec (spec) where
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Control.Scheduler
-import           Data.Time.Clock      (UTCTime)
-import           System.Cron          (yearly)
+import           Control.Scheduler.Chronometer (MonadChronometer (..))
+import           Control.Scheduler.Time        (CurrentTime (..))
+import           Data.Time.Clock               (UTCTime)
+import           System.Cron                   (yearly)
 
 import           Test.Hspec
 

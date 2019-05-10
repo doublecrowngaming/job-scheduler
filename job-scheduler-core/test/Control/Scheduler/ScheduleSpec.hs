@@ -2,10 +2,12 @@
 
 module Control.Scheduler.ScheduleSpec (spec) where
 
-import           Control.Scheduler hiding (now)
-import           Data.Maybe        (isNothing)
-import           Data.Time.Clock   (DiffTime, UTCTime (..))
-import           System.Cron       (daily)
+import           Control.Scheduler
+import           Control.Scheduler.Schedule (nextJob, runAt)
+import           Control.Scheduler.Time     (CurrentTime (..), addTime)
+import           Data.Maybe                 (isNothing)
+import           Data.Time.Clock            (DiffTime, UTCTime (..))
+import           System.Cron                (daily)
 
 import           Test.Hspec
 import           Test.QuickCheck

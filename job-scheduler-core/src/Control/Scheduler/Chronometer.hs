@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances  #-}
+{-# OPTIONS_HADDOCK hide           #-}
 
 module Control.Scheduler.Chronometer (
   MonadChronometer(..)
