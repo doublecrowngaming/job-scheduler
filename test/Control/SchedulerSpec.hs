@@ -26,11 +26,13 @@ newtype PureTime a = PureTime { runPureTime :: State UTCTime a }
   deriving (Functor, Applicative, Monad)
 
 instance MonadChronometer PureTime where
-  now                             = PureTime (gets CurrentTime)
-  sleepUntil (ScheduledTime time) = PureTime $ do
-                                      now' <- get
-                                      when (time > now') $
-                                        put time
+  now                            = PureTime (gets CurrentTime)
+  at (ScheduledTime time) action = do
+    PureTime $ do
+      now' <- get
+      when (time > now') $
+        put time
+    action
 
 data ExecutedAction = ExecutedAction CurrentTime String deriving (Eq, Show)
 
@@ -54,6 +56,9 @@ loggingReactor =
   react $ \datum -> do
     now' <- now
     lift $ tell [ExecutedAction now' datum]
+
+sleepUntil :: MonadChronometer m => ScheduledTime -> m ()
+sleepUntil st = at st (return ())
 
 spec :: Spec
 spec = do

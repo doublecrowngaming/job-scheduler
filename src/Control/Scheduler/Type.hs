@@ -16,21 +16,30 @@ module Control.Scheduler.Type (
   Enrichment(..)
 ) where
 
-import           Control.Monad.Catch        (MonadCatch (..), MonadMask (..),
-                                             MonadThrow (..))
-import           Control.Monad.IO.Class     (MonadIO (..))
-import           Control.Monad.Logger       (MonadLogger, MonadLoggerIO)
-import           Control.Monad.State.Strict (MonadState, StateT (..), get)
-import           Control.Monad.Trans.Class  (MonadTrans (..))
-import           Prometheus                 (MonadMonitor)
+import           Control.Monad.Catch           (MonadCatch (..), MonadMask (..),
+                                                MonadThrow (..))
+import           Control.Monad.IO.Class        (MonadIO (..))
+import           Control.Monad.Logger          (MonadLogger, MonadLoggerIO)
+import           Control.Monad.State.Strict    (MonadState, StateT (..), get)
+import           Control.Monad.Trans.Class     (MonadTrans (..))
+import           Control.Scheduler.Chronometer (MonadChronometer (..))
+import           Prometheus                    (MonadMonitor)
 
 newtype Scheduler r d m a = Scheduler { unScheduler :: StateT (r d) m a }
-                            deriving (
-                              Functor, Applicative, Monad,
-                              MonadState (r d),
-                              MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans,
-                              MonadLogger, MonadLoggerIO, MonadMonitor
-                            )
+                              deriving (
+                                Functor, Applicative, Monad,
+                                MonadState (r d),
+                                MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans,
+                                MonadLogger, MonadLoggerIO, MonadMonitor
+                              )
+
+instance MonadChronometer m => MonadChronometer (Scheduler r d m) where
+  now = lift now
+  at time (Scheduler action) = Scheduler (at time action)
+
+class RunnableScheduler r where
+  runScheduler :: Monad m => Scheduler r d m () -> m ()
+
 
 data Iso a b = Iso { forward :: a -> b, reverse :: b -> a }
 

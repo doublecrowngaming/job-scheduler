@@ -53,16 +53,16 @@ instance (Monad m, MonadChronometer m, MonadJobs d m) => MonadScheduler d m wher
   react handler = do
     mbItem <- peekQueue
 
-    whenJust mbItem $ \(runTime, Job{..}) -> do
-      sleepUntil runTime
-      now' <- now
+    whenJust mbItem $ \(runTime, Job{..}) ->
+      at runTime $ do
+        now' <- now
 
-      execute (handler jobWorkUnit)
+        execute (handler jobWorkUnit)
 
-      dropQueue
+        dropQueue
 
-      whenJust
-        (nextJob jobSchedule now')
-        (`schedule` jobWorkUnit)
+        whenJust
+          (nextJob jobSchedule now')
+          (`schedule` jobWorkUnit)
 
-      react handler
+        react handler
