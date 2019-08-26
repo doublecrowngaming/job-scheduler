@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Control.Scheduler.Type (
   Scheduler,
@@ -33,9 +34,9 @@ newtype Scheduler r d m a = Scheduler { unScheduler :: StateT (r d) m a }
                                 MonadLogger, MonadLoggerIO, MonadMonitor
                               )
 
-instance MonadChronometer m => MonadChronometer (Scheduler r d m) where
+instance MonadChronometer m i => MonadChronometer (Scheduler r d m) i where
   now = lift now
-  at time (Scheduler action) = Scheduler (at time action)
+  at time handler = Scheduler (at time $ \x -> unScheduler (handler x))
 
 class RunnableScheduler r where
   runScheduler :: Monad m => Scheduler r d m () -> m ()

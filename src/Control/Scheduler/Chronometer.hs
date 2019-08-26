@@ -1,52 +1,114 @@
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE UndecidableInstances       #-}
+{-# OPTIONS_HADDOCK hide           #-}
+{-# LANGUAGE ExplicitForAll             #-}
+{-# LANGUAGE FunctionalDependencies     #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module Control.Scheduler.Chronometer (
-  MonadChronometer(..)
+  MonadChronometer(..),
+  TimerResult(..),
+  runInterruptable,
+  runUninterruptable
 ) where
 
-import           Control.Concurrent               (threadDelay)
+import           Control.Concurrent               (ThreadId, forkIO, killThread,
+                                                   threadDelay)
+import           Control.Concurrent.STM.TMVar
+import           Control.Monad                    (void)
+import           Control.Monad.IO.Class           (MonadIO (..))
+import           Control.Monad.IO.Unlift          (MonadUnliftIO, withRunInIO)
+import           Control.Monad.STM
 import           Control.Monad.Trans.Class        (MonadTrans (..))
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.State.Strict
 import           Control.Monad.Trans.Writer
 import           Control.Scheduler.Time           (CurrentTime (..), Delay (..),
                                                    ScheduledTime, diffTime)
+import           Data.Maybe                       (isJust)
 import           Data.Time.Clock                  (getCurrentTime)
 
-class Monad m => MonadChronometer m where
+class Monad m => MonadChronometer m i | m -> i where
   now :: m CurrentTime
-  at  :: ScheduledTime -> m s -> m s
+  at  :: ScheduledTime -> (TimerResult i -> m s) -> m s
 
 
-instance MonadChronometer m => MonadChronometer (ReaderT r m) where
+instance MonadChronometer m i => MonadChronometer (ReaderT r m) i where
   now = lift now
   at time action = do
     r <- ask
-    lift (at time $ runReaderT action r)
+    lift (at time $ \x -> runReaderT (action x) r)
 
-instance MonadChronometer m => MonadChronometer (StateT s m) where
+instance MonadChronometer m i => MonadChronometer (StateT s m) i where
   now = lift now
   at time action = do
     s <- get
-    (a, s') <- lift (at time (runStateT action s))
+    (a, s') <- lift (at time (\x -> runStateT (action x) s))
     put s'
     return a
 
-instance (Monoid w, MonadChronometer m) => MonadChronometer (WriterT w m) where
+instance (Monoid w, MonadChronometer m i) => MonadChronometer (WriterT w m) i where
   now = lift now
   at time action = do
-    (a, w) <- lift (at time (runWriterT action))
+    (a, w) <- lift (at time (runWriterT . action))
     tell w
     return a
 
-instance MonadChronometer IO where
-  now = CurrentTime <$> getCurrentTime
+newtype Uninterruptable c a = Uninterruptable { runUninterruptable :: IO a }
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadChronometer (Uninterruptable i) i where
+  now = liftIO (CurrentTime <$> getCurrentTime)
 
   at wakeupTime action = do
     timerSleep . (wakeupTime `diffTime`) =<< now
-    action
+    action Expiration
       where
-        timerSleep (Delay interval) = threadDelay (1000 * 1000 * round interval)
+        timerSleep (Delay interval) = liftIO $ threadDelay (1000 * 1000 * round interval)
+
+
+data TimerResult i = Interrupt i | Expiration
+
+newtype InterruptableContext i = InterruptableContext {
+  icMailbox :: TMVar (TimerResult i)
+}
+
+newtype Interruptable c io a = Interruptable { unInterruptable :: ReaderT (InterruptableContext c) io a }
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadIO io => MonadChronometer (Interruptable i io) i where
+  now = liftIO (CurrentTime <$> getCurrentTime)
+
+  at wakeupTime action = Interruptable $ do
+    InterruptableContext{..} <- ask
+
+    void . liftIO . forkIO $ do
+      timerSleep . (wakeupTime `diffTime`) =<< CurrentTime <$> getCurrentTime
+      atomically (putTMVar icMailbox Expiration)
+
+    timerResult <- liftIO . atomically $ takeTMVar icMailbox
+
+    unInterruptable $ action timerResult
+
+    where
+      timerSleep (Delay interval) = threadDelay (1000 * 1000 * round interval)
+
+runInterruptable :: MonadIO io => Interruptable c io a -> io a
+runInterruptable action = do
+  mailbox <- liftIO newEmptyTMVarIO
+
+  runReaderT (unInterruptable action) $ InterruptableContext mailbox
+
+sendInterrupt :: MonadIO io => c -> Interruptable c io ()
+sendInterrupt i = Interruptable $ do
+  InterruptableContext{..} <- ask
+
+  liftIO $ atomically (putTMVar icMailbox $ Interrupt i)
+
+forkInterruptable :: (MonadIO io, MonadUnliftIO io) => Interruptable c io () -> Interruptable c io ThreadId
+forkInterruptable (Interruptable action) = Interruptable $
+  withRunInIO $ \run ->
+    liftIO . forkIO $ run action

@@ -1,15 +1,15 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeApplications           #-}
 
 module Control.SchedulerSpec (spec) where
 
 import           Control.Monad.State
 import           Control.Monad.Writer
-import           Control.Scheduler                       (withLocalCheckpointing,
-                                                          withPrometheus)
-import           Control.Scheduler.Chronometer
+import           Control.Scheduler
+import           Control.Scheduler.Chronometer           (MonadChronometer (..), TimerResult (Expiration))
 import           Control.Scheduler.Class
 import           Control.Scheduler.Runner.SingleThreaded
 import           Control.Scheduler.Schedule
@@ -25,20 +25,23 @@ import           Test.Hspec
 newtype PureTime a = PureTime { runPureTime :: State UTCTime a }
   deriving (Functor, Applicative, Monad)
 
-instance MonadChronometer PureTime where
-  now                            = PureTime (gets CurrentTime)
-  at (ScheduledTime time) action = do
+instance MonadChronometer PureTime (Job String) where
+  now                             = PureTime (gets CurrentTime)
+  at (ScheduledTime time) handler = do
     PureTime $ do
       now' <- get
       when (time > now') $
         put time
-    action
+    handler Expiration
 
 data ExecutedAction = ExecutedAction CurrentTime String deriving (Eq, Show)
 
 newtype EffectLogger a = EffectLogger { runEffectLogger :: WriterT [ExecutedAction] PureTime a }
-  deriving (Functor, Applicative, Monad, MonadWriter [ExecutedAction], MonadChronometer)
+  deriving (Functor, Applicative, Monad, MonadWriter [ExecutedAction])
 
+instance MonadChronometer EffectLogger (Job String) where
+  now           = EffectLogger now
+  at st handler = EffectLogger (at st $ \x -> runEffectLogger (handler x))
 
 execEffectLogger :: UTCTime -> EffectLogger a -> [ExecutedAction]
 execEffectLogger startTime action =
@@ -57,8 +60,8 @@ loggingReactor =
     now' <- now
     lift $ tell [ExecutedAction now' datum]
 
-sleepUntil :: MonadChronometer m => ScheduledTime -> m ()
-sleepUntil st = at st (return ())
+sleepUntil :: MonadChronometer m i => ScheduledTime -> m ()
+sleepUntil st = at st (const $ return ())
 
 spec :: Spec
 spec = do

@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE TypeFamilies           #-}
@@ -14,7 +15,8 @@ module Control.Scheduler.Class (
   Job(..)
 ) where
 
-import           Control.Scheduler.Chronometer (MonadChronometer (..))
+import           Control.Scheduler.Chronometer (MonadChronometer (..),
+                                                TimerResult (..))
 import           Control.Scheduler.Schedule    (Schedule (..), nextJob, runAt)
 import           Control.Scheduler.Time        (ScheduledTime (..))
 import           Data.Aeson                    (FromJSON, ToJSON)
@@ -43,7 +45,7 @@ whenJust :: Applicative f => Maybe a -> (a -> f ()) -> f ()
 whenJust Nothing  _      = pure ()
 whenJust (Just x) action = action x
 
-instance (Monad m, MonadChronometer m, MonadJobs d m) => MonadScheduler d m where
+instance (Monad m, MonadChronometer m (Job d), MonadJobs d m) => MonadScheduler d m where
   schedule task datum = do
     mbExecutesAt <- runAt task <$> now
 
@@ -54,15 +56,19 @@ instance (Monad m, MonadChronometer m, MonadJobs d m) => MonadScheduler d m wher
     mbItem <- peekQueue
 
     whenJust mbItem $ \(runTime, Job{..}) ->
-      at runTime $ do
-        now' <- now
+      at runTime $ \case
+        Expiration -> do
+          now' <- now
 
-        execute (handler jobWorkUnit)
+          execute (handler jobWorkUnit)
 
-        dropQueue
+          dropQueue
 
-        whenJust
-          (nextJob jobSchedule now')
-          (`schedule` jobWorkUnit)
+          whenJust
+            (nextJob jobSchedule now')
+            (`schedule` jobWorkUnit)
 
-        react handler
+          react handler
+        Interrupt Job{..} -> do
+          schedule jobSchedule jobWorkUnit
+          react handler

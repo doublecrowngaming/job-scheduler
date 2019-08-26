@@ -26,6 +26,8 @@ dependencies:
   - monad-logger
   - exceptions
   - prometheus-client >= 1.0.0 && < 2
+  - stm
+  - unliftio-core
 
 library:
   source-dirs: src
