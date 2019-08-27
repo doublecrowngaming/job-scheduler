@@ -17,14 +17,16 @@ spec = do
       withSystemTempDirectory "foo" $ \dirpath -> do
         let filepath = dirpath <> "/noexist"
 
-        runScheduler @SingleThreaded (withLocalCheckpointing filepath $ schedule Immediately "foo")
+        runUninterruptable $
+          runScheduler @SingleThreaded (withLocalCheckpointing filepath $ schedule Immediately "foo")
         True `shouldBe` True
 
     it "is ok with a checkpoint file containing an empty list" $ do
       tmpfile <- emptySystemTempFile "foobar"
       writeFile tmpfile "[]"
 
-      runScheduler @SingleThreaded (withLocalCheckpointing tmpfile $ schedule Immediately "foo")
+      runUninterruptable $
+        runScheduler @SingleThreaded (withLocalCheckpointing tmpfile $ schedule Immediately "foo")
 
       True `shouldBe` True
 
@@ -35,13 +37,14 @@ spec = do
       withSystemTempDirectory "foo" $ \dirpath -> do
         let filepath = dirpath <> "/noexist"
 
-        runScheduler @SingleThreaded $
-          withLocalCheckpointing filepath $ do
-            onColdStart (schedule Immediately "foo")
+        runUninterruptable $
+          runScheduler @SingleThreaded $
+            withLocalCheckpointing filepath $ do
+              onColdStart (schedule Immediately "foo")
 
-            react $ \case
-              "foo" -> liftIO $ putMVar mvar 3
-              _     -> liftIO $ putMVar mvar 0
+              react $ \case
+                "foo" -> liftIO $ putMVar mvar 3
+                _     -> liftIO $ putMVar mvar 0
 
       takeMVar mvar `shouldReturn` 3
 
@@ -53,13 +56,14 @@ spec = do
 
         writeFile filepath "[]"
 
-        runScheduler @SingleThreaded $
-          withLocalCheckpointing filepath $ do
-            onColdStart (schedule Immediately "foo")
+        runUninterruptable $
+          runScheduler @SingleThreaded $
+            withLocalCheckpointing filepath $ do
+              onColdStart (schedule Immediately "foo")
 
-            react $ \case
-              "foo" -> liftIO $ putMVar mvar 3
-              _     -> liftIO $ putMVar mvar 0
+              react $ \case
+                "foo" -> liftIO $ putMVar mvar 3
+                _     -> liftIO $ putMVar mvar 0
 
       takeMVar mvar `shouldReturn` 3
 
@@ -71,16 +75,17 @@ spec = do
 
         writeFile filepath "[]"
 
-        runScheduler @SingleThreaded $
-          withLocalCheckpointing filepath $
-            schedule Immediately "bar"
+        runUninterruptable $ do
+          runScheduler @SingleThreaded $
+            withLocalCheckpointing filepath $
+              schedule Immediately "bar"
 
-        runScheduler @SingleThreaded $
-          withLocalCheckpointing filepath $ do
-            onColdStart (schedule Immediately "foo")
+          runScheduler @SingleThreaded $
+            withLocalCheckpointing filepath $ do
+              onColdStart (schedule Immediately "foo")
 
-            react $ \case
-              "foo" -> liftIO $ putMVar mvar 3
-              _     -> liftIO $ putMVar mvar 0
+              react $ \case
+                "foo" -> liftIO $ putMVar mvar 3
+                _     -> liftIO $ putMVar mvar 0
 
       takeMVar mvar `shouldReturn` 0

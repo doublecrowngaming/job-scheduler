@@ -11,7 +11,11 @@ module Control.Scheduler (
 
 
 import           Control.Scheduler.Checkpointing
-import           Control.Scheduler.Chronometer            (MonadChronometer (..))
+import           Control.Scheduler.Chronometer            (MonadChronometer (..),
+                                                           forkInterruptable,
+                                                           runInterruptable,
+                                                           runUninterruptable,
+                                                           sendInterrupt)
 import           Control.Scheduler.Class                  (MonadJobs,
                                                            MonadScheduler (..))
 import           Control.Scheduler.Enrichments.Prometheus

@@ -182,22 +182,24 @@ spec = do
 
   describe "Prometheus SingleThreaded" $
     it "allows react to schedule a new job" $ do
-      runScheduler @SingleThreaded $ withPrometheus $ do
-                  schedule Immediately "foo"
+      runUninterruptable $
+        runScheduler @SingleThreaded $ withPrometheus $ do
+                    schedule Immediately "foo"
 
-                  react $ \case
-                    "foo" -> schedule Immediately "bar"
-                    _     -> return ()
+                    react $ \case
+                      "foo" -> schedule Immediately "bar"
+                      _     -> return ()
 
       True `shouldBe` True
 
   describe "Checkpointing SingleThreaded" $
     it "allows react to schedule a new job" $ do
-      runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
-                  schedule Immediately "foo"
+      runUninterruptable $
+        runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
+                    schedule Immediately "foo"
 
-                  react $ \case
-                    "foo" -> schedule Immediately "bar"
-                    _     -> return ()
+                    react $ \case
+                      "foo" -> schedule Immediately "bar"
+                      _     -> return ()
 
       True `shouldBe` True

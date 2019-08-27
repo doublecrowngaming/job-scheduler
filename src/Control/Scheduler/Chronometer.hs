@@ -12,15 +12,21 @@ module Control.Scheduler.Chronometer (
   MonadChronometer(..),
   TimerResult(..),
   runInterruptable,
-  runUninterruptable
+  runUninterruptable,
+  sendInterrupt,
+  forkInterruptable
 ) where
 
 import           Control.Concurrent               (ThreadId, forkIO, killThread,
                                                    threadDelay)
 import           Control.Concurrent.STM.TMVar
 import           Control.Monad                    (void)
+import           Control.Monad.Catch              (MonadCatch (..),
+                                                   MonadMask (..),
+                                                   MonadThrow (..))
 import           Control.Monad.IO.Class           (MonadIO (..))
 import           Control.Monad.IO.Unlift          (MonadUnliftIO, withRunInIO)
+import           Control.Monad.Logger             (MonadLogger, MonadLoggerIO)
 import           Control.Monad.STM
 import           Control.Monad.Trans.Class        (MonadTrans (..))
 import           Control.Monad.Trans.Reader
@@ -30,6 +36,7 @@ import           Control.Scheduler.Time           (CurrentTime (..), Delay (..),
                                                    ScheduledTime, diffTime)
 import           Data.Maybe                       (isJust)
 import           Data.Time.Clock                  (getCurrentTime)
+import           Prometheus                       (MonadMonitor)
 
 class Monad m => MonadChronometer m i | m -> i where
   now :: m CurrentTime
@@ -58,7 +65,11 @@ instance (Monoid w, MonadChronometer m i) => MonadChronometer (WriterT w m) i wh
     return a
 
 newtype Uninterruptable c a = Uninterruptable { runUninterruptable :: IO a }
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (
+    Functor, Applicative, Monad, MonadIO,
+    MonadThrow, MonadCatch, MonadMask,
+    MonadMonitor
+  )
 
 instance MonadChronometer (Uninterruptable i) i where
   now = liftIO (CurrentTime <$> getCurrentTime)
@@ -77,7 +88,11 @@ newtype InterruptableContext i = InterruptableContext {
 }
 
 newtype Interruptable c io a = Interruptable { unInterruptable :: ReaderT (InterruptableContext c) io a }
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (
+    Functor, Applicative, Monad, MonadIO,
+    MonadThrow, MonadCatch, MonadMask,
+    MonadLogger, MonadLoggerIO, MonadMonitor
+  )
 
 instance MonadIO io => MonadChronometer (Interruptable i io) i where
   now = liftIO (CurrentTime <$> getCurrentTime)

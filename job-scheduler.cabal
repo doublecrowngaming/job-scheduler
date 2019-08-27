@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b3bc87d37dd64505e82dd91c46ef79b5f2ec827154d8cd0ac6e67cc5efefcdd2
+-- hash: 5070bf4454c0f9ce9d654b2ae9d99b99aee6596e0390a7f5998d8b8a61366464
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -55,9 +55,11 @@ library
     , mtl
     , pqueue
     , prometheus-client >=1.0.0 && <2
+    , stm
     , text
     , time
     , transformers
+    , unliftio-core
   default-language: Haskell2010
 
 test-suite spec
@@ -90,8 +92,10 @@ test-suite spec
     , mtl
     , pqueue
     , prometheus-client >=1.0.0 && <2
+    , stm
     , temporary
     , text
     , time
     , transformers
+    , unliftio-core
   default-language: Haskell2010

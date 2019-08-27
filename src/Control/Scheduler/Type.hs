@@ -70,6 +70,3 @@ unstackM :: (Enrichment (k r d) (r d), Monad m) => (r d -> m (k r d)) -> Schedul
 unstackM mkCompositeM action = do
   composite <- (lift . mkCompositeM) =<< get
   withScheduler (inverse $ enrich composite) action
-
-class RunnableScheduler r where
-  runScheduler :: Monad m => Scheduler r d m () -> m ()
