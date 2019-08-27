@@ -7,7 +7,7 @@
 module Control.SchedulerSpec (spec) where
 
 import           Control.Monad.State
-import           Control.Monad.Writer
+import           Control.Monad.Writer.Strict
 import           Control.Scheduler
 import           Control.Scheduler.Chronometer           (MonadChronometer (..), TimerResult (Expiration))
 import           Control.Scheduler.Class
@@ -182,7 +182,7 @@ spec = do
 
   describe "Prometheus SingleThreaded" $
     it "allows react to schedule a new job" $ do
-      runUninterruptable $
+      runChronometerT $
         runScheduler @SingleThreaded $ withPrometheus $ do
                     schedule Immediately "foo"
 
@@ -194,7 +194,7 @@ spec = do
 
   describe "Checkpointing SingleThreaded" $
     it "allows react to schedule a new job" $ do
-      runUninterruptable $
+      runChronometerT $
         runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
                     schedule Immediately "foo"
 

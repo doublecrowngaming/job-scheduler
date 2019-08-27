@@ -17,7 +17,7 @@ spec = do
       withSystemTempDirectory "foo" $ \dirpath -> do
         let filepath = dirpath <> "/noexist"
 
-        runUninterruptable $
+        runChronometerT $
           runScheduler @SingleThreaded (withLocalCheckpointing filepath $ schedule Immediately "foo")
         True `shouldBe` True
 
@@ -25,7 +25,7 @@ spec = do
       tmpfile <- emptySystemTempFile "foobar"
       writeFile tmpfile "[]"
 
-      runUninterruptable $
+      runChronometerT $
         runScheduler @SingleThreaded (withLocalCheckpointing tmpfile $ schedule Immediately "foo")
 
       True `shouldBe` True
@@ -37,7 +37,7 @@ spec = do
       withSystemTempDirectory "foo" $ \dirpath -> do
         let filepath = dirpath <> "/noexist"
 
-        runUninterruptable $
+        runChronometerT $
           runScheduler @SingleThreaded $
             withLocalCheckpointing filepath $ do
               onColdStart (schedule Immediately "foo")
@@ -56,7 +56,7 @@ spec = do
 
         writeFile filepath "[]"
 
-        runUninterruptable $
+        runChronometerT $
           runScheduler @SingleThreaded $
             withLocalCheckpointing filepath $ do
               onColdStart (schedule Immediately "foo")
@@ -75,7 +75,7 @@ spec = do
 
         writeFile filepath "[]"
 
-        runUninterruptable $ do
+        runChronometerT $ do
           runScheduler @SingleThreaded $
             withLocalCheckpointing filepath $
               schedule Immediately "bar"

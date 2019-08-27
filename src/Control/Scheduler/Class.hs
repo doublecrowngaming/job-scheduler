@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
 module Control.Scheduler.Class (
@@ -22,14 +23,13 @@ import           Control.Scheduler.Time        (ScheduledTime (..))
 import           Data.Aeson                    (FromJSON, ToJSON)
 import           GHC.Generics                  (Generic)
 
-
 data Job d = Job {
   jobSchedule :: Schedule,
   jobWorkUnit :: d
 } deriving (Show, Generic, ToJSON, FromJSON)
 
 class MonadJobs d m => MonadScheduler d m | m -> d where
-  schedule :: Schedule -> d -> m ()
+  schedule :: Job d -> m ()
   react    :: (d -> ExecutionMonad m ()) -> m ()
 
 class MonadJobs d m | m -> d where
@@ -46,11 +46,13 @@ whenJust Nothing  _      = pure ()
 whenJust (Just x) action = action x
 
 instance (Monad m, MonadChronometer m (Job d), MonadJobs d m) => MonadScheduler d m where
-  schedule task datum = do
-    mbExecutesAt <- runAt task <$> now
+  schedule job = do
+    mbExecutesAt <- jobRunAt job <$> now
 
     whenJust mbExecutesAt $ \executesAt ->
-      pushQueue executesAt (Job task datum)
+      pushQueue executesAt job
+    where
+      jobRunAt Job{..} = runAt jobSchedule
 
   react handler = do
     mbItem <- peekQueue
@@ -64,11 +66,10 @@ instance (Monad m, MonadChronometer m (Job d), MonadJobs d m) => MonadScheduler 
 
           dropQueue
 
-          whenJust
-            (nextJob jobSchedule now')
-            (`schedule` jobWorkUnit)
+          whenJust (nextJob jobSchedule now') $ \jobSchedule' ->
+            schedule (Job jobSchedule' jobWorkUnit)
 
           react handler
-        Interrupt Job{..} -> do
-          schedule jobSchedule jobWorkUnit
+        Interrupt job -> do
+          schedule job
           react handler

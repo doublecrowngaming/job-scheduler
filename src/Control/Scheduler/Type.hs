@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
 module Control.Scheduler.Type (
