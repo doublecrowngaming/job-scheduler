@@ -83,7 +83,7 @@ newtype ChronometerT c io a = ChronometerT { unChronometerT :: StateT (Chronomet
 instance MonadTrans (ChronometerT c) where
   lift = ChronometerT . lift
 
-instance (MonadIO io, MonadUnliftIO io) => MonadChronometer (ChronometerT i io) i where
+instance (MonadIO io, MonadLogger io, MonadUnliftIO io) => MonadChronometer (ChronometerT i io) i where
   now = liftIO (CurrentTime <$> getCurrentTime)
 
   at wakeupTime action = do
@@ -94,7 +94,7 @@ instance (MonadIO io, MonadUnliftIO io) => MonadChronometer (ChronometerT i io) 
     killTimerThread
     action timerResult
 
-startTimerThread :: (MonadIO io, MonadUnliftIO io ) => ScheduledTime -> ChronometerT c io ()
+startTimerThread :: (MonadIO io, MonadLogger io, MonadUnliftIO io ) => ScheduledTime -> ChronometerT c io ()
 startTimerThread wakeupTime =
   gets icTimer >>= \case
     Nothing -> do
@@ -109,11 +109,11 @@ startTimerThread wakeupTime =
       | otherwise    = threadDelay (1000 * 1000 * round interval)
     doTimer = do
       mbox <- gets icMailbox
-      -- logDebugNS "ChronometerT" "Preparing to sleep"
+      logDebugNS "ChronometerT" "Preparing to sleep"
       liftIO $ timerSleep . (wakeupTime `diffTime`) =<< CurrentTime <$> getCurrentTime
-      -- logDebugNS  "ChronometerT" "Wakeup"
+      logDebugNS  "ChronometerT" "Wakeup"
       liftIO $ atomically (putTMVar mbox Expiration)
-      -- logDebugNS "ChronometerT" "Posted expiration"
+      logDebugNS "ChronometerT" "Posted expiration"
 
 killTimerThread :: MonadIO io => ChronometerT c io ()
 killTimerThread =
