@@ -64,14 +64,14 @@ instance (Monoid w, MonadChronometer m i) => MonadChronometer (WriterT w m) i wh
     tell w
     return a
 
-newtype Uninterruptable c a = Uninterruptable { runUninterruptable :: IO a }
+newtype Uninterruptable c io a = Uninterruptable { runUninterruptable :: io a }
   deriving (
     Functor, Applicative, Monad, MonadIO,
     MonadThrow, MonadCatch, MonadMask,
-    MonadMonitor
+    MonadLogger, MonadLoggerIO, MonadMonitor
   )
 
-instance MonadChronometer (Uninterruptable i) i where
+instance MonadIO io => MonadChronometer (Uninterruptable i io) i where
   now = liftIO (CurrentTime <$> getCurrentTime)
 
   at wakeupTime action = do
