@@ -17,7 +17,6 @@ module Control.Scheduler.Chronometer (
   ChronometerT,
   runChronometerT,
   sendInterrupt,
-  sendInterruptIO,
   forkChronometerT
 ) where
 
@@ -27,7 +26,8 @@ import           Control.Concurrent.STM.TMVar
 import           Control.Monad.Catch          (MonadCatch (..), MonadMask (..),
                                                MonadThrow (..))
 import           Control.Monad.IO.Class       (MonadIO (..))
-import           Control.Monad.IO.Unlift      (MonadUnliftIO, withRunInIO)
+import           Control.Monad.IO.Unlift      (MonadUnliftIO (..),
+                                               UnliftIO (..), withRunInIO)
 import           Control.Monad.Logger         (MonadLogger, MonadLoggerIO,
                                                logDebugNS)
 import           Control.Monad.Reader
@@ -84,6 +84,12 @@ newtype ChronometerT c io a = ChronometerT { unChronometerT :: StateT (Chronomet
 instance MonadTrans (ChronometerT c) where
   lift = ChronometerT . lift
 
+instance MonadUnliftIO m => MonadUnliftIO (ChronometerT c m) where
+  askUnliftIO = do
+    ctx <- get
+    baseUnliftIO <- lift askUnliftIO
+    return (UnliftIO $ \(ChronometerT actions) -> unliftIO baseUnliftIO $ evalStateT actions ctx)
+
 instance (MonadIO io, MonadLogger io, MonadUnliftIO io) => MonadChronometer (ChronometerT i io) i where
   now = liftIO (CurrentTime <$> getCurrentTime)
 
@@ -132,19 +138,11 @@ runChronometerT action = do
 
 sendInterrupt :: MonadIO io => c -> ChronometerT c io ()
 sendInterrupt i = do
-  send <- sendInterruptIO
-  liftIO (send i)
+  ChronometerContext{..} <- get
 
-sendInterruptIO :: MonadIO io => ChronometerT c io (c  -> IO ())
-sendInterruptIO = ChronometerT $ do
-  mbox <- gets icMailbox
-
-  return (atomically . putTMVar mbox . Interrupt)
+  liftIO $ atomically . putTMVar icMailbox $ Interrupt i
 
 forkChronometerT :: (MonadIO io, MonadUnliftIO io) => ChronometerT c io () -> ChronometerT c io ThreadId
-forkChronometerT (ChronometerT action) = do
-  ctx <- get
-
-  lift $
-    withRunInIO $ \run ->
-      liftIO . forkIO $ run (evalStateT action ctx)
+forkChronometerT action =
+  withRunInIO $ \run ->
+    liftIO . forkIO $ run action
