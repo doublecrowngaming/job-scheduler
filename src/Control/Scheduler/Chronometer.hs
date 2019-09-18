@@ -17,6 +17,7 @@ module Control.Scheduler.Chronometer (
   ChronometerT,
   runChronometerT,
   sendInterrupt,
+  sendInterruptIO,
   forkChronometerT
 ) where
 
@@ -131,9 +132,14 @@ runChronometerT action = do
 
 sendInterrupt :: MonadIO io => c -> ChronometerT c io ()
 sendInterrupt i = do
-  ChronometerContext{..} <- get
+  send <- sendInterruptIO
+  liftIO (send i)
 
-  liftIO $ atomically (putTMVar icMailbox $ Interrupt i)
+sendInterruptIO :: MonadIO io => ChronometerT c io (c  -> IO ())
+sendInterruptIO = ChronometerT $ do
+  mbox <- gets icMailbox
+
+  return (atomically . putTMVar mbox . Interrupt)
 
 forkChronometerT :: (MonadIO io, MonadUnliftIO io) => ChronometerT c io () -> ChronometerT c io ThreadId
 forkChronometerT (ChronometerT action) = do
