@@ -16,10 +16,11 @@ module Control.Scheduler.Class (
   Job(..)
 ) where
 
+import           Control.Monad                 (when)
 import           Control.Scheduler.Chronometer (MonadChronometer (..),
                                                 TimerResult (..))
 import           Control.Scheduler.Schedule    (Schedule (..), nextJob, runAt)
-import           Control.Scheduler.Time        (ScheduledTime (..))
+import           Control.Scheduler.Time        (ScheduledTime (..), isAtOrAfter)
 import           Data.Aeson                    (FromJSON, ToJSON)
 import           GHC.Generics                  (Generic)
 
@@ -57,19 +58,24 @@ instance (Monad m, MonadChronometer m (Job d), MonadJobs d m) => MonadScheduler 
   react handler = do
     mbItem <- peekQueue
 
-    whenJust mbItem $ \(runTime, Job{..}) ->
+    whenJust mbItem $ \(runTime, job) ->
       at runTime $ \case
         Expiration -> do
           now' <- now
 
-          execute (handler jobWorkUnit)
+          when (now' `isAtOrAfter` runTime) $ do
+            runJob now' job
+            react handler
 
-          dropQueue
-
-          whenJust (nextJob jobSchedule now') $ \jobSchedule' ->
-            schedule (Job jobSchedule' jobWorkUnit)
-
-          react handler
         Interrupt job -> do
           schedule job
           react handler
+
+    where
+      runJob now' Job{..} = do
+        execute (handler jobWorkUnit)
+
+        dropQueue
+
+        whenJust (nextJob jobSchedule now') $ \jobSchedule' ->
+          schedule (Job jobSchedule' jobWorkUnit)

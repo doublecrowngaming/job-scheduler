@@ -11,6 +11,7 @@ module Control.Scheduler.Time (
   addInterval,
   addTime,
   diffTime,
+  isAtOrAfter,
   replaceTime,
   next
 ) where
@@ -33,6 +34,9 @@ addInterval time (Interval interval) = realToFrac interval `addUTCTime` time
 
 replaceTime :: UTCTime -> DiffTime -> UTCTime
 replaceTime (UTCTime day _) = UTCTime day
+
+isAtOrAfter :: DiffableTime a b => a -> b -> Bool
+isAtOrAfter a b = a `diffTime` b >= 0
 
 next :: ReferenceTime -> Interval -> UTCTime -> UTCTime
 next (ReferenceTime baseTime) (Interval increment) now =
@@ -72,3 +76,6 @@ instance DiffableTime UTCTime UTCTime where
 
 instance DiffableTime ScheduledTime CurrentTime where
   diffTime (ScheduledTime st) (CurrentTime ct) = Delay (st `diffUTCTime` ct)
+
+instance DiffableTime CurrentTime ScheduledTime where
+  diffTime = (negate .) . flip diffTime
