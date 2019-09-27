@@ -3,9 +3,12 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Control.SchedulerSpec (spec) where
 
+import           Control.Monad.Logger                    (NoLoggingT,
+                                                          runNoLoggingT)
 import           Control.Monad.State
 import           Control.Monad.Writer.Strict
 import           Control.Scheduler
@@ -17,10 +20,14 @@ import           Control.Scheduler.Time                  (CurrentTime (..),
                                                           ScheduledTime (..))
 import           Control.Scheduler.Type
 import           Data.Time.Clock                         (UTCTime)
+import           Prometheus                              (MonadMonitor (..))
 import           System.Cron                             (yearly)
 
 import           Test.Hspec
 
+
+instance (MonadIO io, MonadMonitor io) => MonadMonitor (NoLoggingT io) where
+  doIO = liftIO . doIO
 
 newtype PureTime a = PureTime { runPureTime :: State UTCTime a }
   deriving (Functor, Applicative, Monad)
@@ -182,24 +189,26 @@ spec = do
 
   describe "Prometheus SingleThreaded" $
     it "allows react to schedule a new job" $ do
-      runChronometerT $
-        runScheduler @SingleThreaded $ withPrometheus $ do
-                    schedule $ Job Immediately "foo"
+      runNoLoggingT $
+        runChronometerT $
+          runScheduler @SingleThreaded $ withPrometheus $ do
+                      schedule $ Job Immediately "foo"
 
-                    react $ \case
-                      "foo" -> schedule $ Job Immediately "bar"
-                      _     -> return ()
+                      react $ \case
+                        "foo" -> schedule $ Job Immediately "bar"
+                        _     -> return ()
 
       True `shouldBe` True
 
   describe "Checkpointing SingleThreaded" $
     it "allows react to schedule a new job" $ do
-      runChronometerT $
-        runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
-                    schedule (Job Immediately "foo")
+      runNoLoggingT $
+        runChronometerT $
+          runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
+                      schedule (Job Immediately "foo")
 
-                    react $ \case
-                      "foo" -> schedule (Job Immediately "bar")
-                      _     -> return ()
+                      react $ \case
+                        "foo" -> schedule (Job Immediately "bar")
+                        _     -> return ()
 
       True `shouldBe` True

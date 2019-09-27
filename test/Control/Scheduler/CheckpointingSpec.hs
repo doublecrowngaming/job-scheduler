@@ -7,6 +7,7 @@ import           Control.Scheduler
 
 import           Control.Concurrent.MVar
 import           Control.Monad.IO.Class  (MonadIO (..))
+import           Control.Monad.Logger    (runNoLoggingT)
 import           System.IO.Temp
 import           Test.Hspec
 
@@ -17,16 +18,18 @@ spec = do
       withSystemTempDirectory "foo" $ \dirpath -> do
         let filepath = dirpath <> "/noexist"
 
-        runChronometerT $
-          runScheduler @SingleThreaded (withLocalCheckpointing filepath $ schedule $ Job Immediately "foo")
+        runNoLoggingT $
+          runChronometerT $
+            runScheduler @SingleThreaded (withLocalCheckpointing filepath $ schedule $ Job Immediately "foo")
         True `shouldBe` True
 
     it "is ok with a checkpoint file containing an empty list" $ do
       tmpfile <- emptySystemTempFile "foobar"
       writeFile tmpfile "[]"
 
-      runChronometerT $
-        runScheduler @SingleThreaded (withLocalCheckpointing tmpfile $ schedule $ Job Immediately "foo")
+      runNoLoggingT $
+        runChronometerT $
+          runScheduler @SingleThreaded (withLocalCheckpointing tmpfile $ schedule $ Job Immediately "foo")
 
       True `shouldBe` True
 
@@ -37,14 +40,15 @@ spec = do
       withSystemTempDirectory "foo" $ \dirpath -> do
         let filepath = dirpath <> "/noexist"
 
-        runChronometerT $
-          runScheduler @SingleThreaded $
-            withLocalCheckpointing filepath $ do
-              onColdStart (schedule $ Job Immediately "foo")
+        runNoLoggingT $
+          runChronometerT $
+            runScheduler @SingleThreaded $
+              withLocalCheckpointing filepath $ do
+                onColdStart (schedule $ Job Immediately "foo")
 
-              react $ \case
-                "foo" -> liftIO $ putMVar mvar 3
-                _     -> liftIO $ putMVar mvar 0
+                react $ \case
+                  "foo" -> liftIO $ putMVar mvar 3
+                  _     -> liftIO $ putMVar mvar 0
 
       takeMVar mvar `shouldReturn` 3
 
@@ -56,14 +60,15 @@ spec = do
 
         writeFile filepath "[]"
 
-        runChronometerT $
-          runScheduler @SingleThreaded $
-            withLocalCheckpointing filepath $ do
-              onColdStart (schedule $ Job Immediately "foo")
+        runNoLoggingT $
+          runChronometerT $
+            runScheduler @SingleThreaded $
+              withLocalCheckpointing filepath $ do
+                onColdStart (schedule $ Job Immediately "foo")
 
-              react $ \case
-                "foo" -> liftIO $ putMVar mvar 3
-                _     -> liftIO $ putMVar mvar 0
+                react $ \case
+                  "foo" -> liftIO $ putMVar mvar 3
+                  _     -> liftIO $ putMVar mvar 0
 
       takeMVar mvar `shouldReturn` 3
 
@@ -75,17 +80,18 @@ spec = do
 
         writeFile filepath "[]"
 
-        runChronometerT $ do
-          runScheduler @SingleThreaded $
-            withLocalCheckpointing filepath $
-              schedule (Job Immediately "bar")
+        runNoLoggingT $
+          runChronometerT $ do
+            runScheduler @SingleThreaded $
+              withLocalCheckpointing filepath $
+                schedule (Job Immediately "bar")
 
-          runScheduler @SingleThreaded $
-            withLocalCheckpointing filepath $ do
-              onColdStart (schedule (Job Immediately "foo"))
+            runScheduler @SingleThreaded $
+              withLocalCheckpointing filepath $ do
+                onColdStart (schedule (Job Immediately "foo"))
 
-              react $ \case
-                "foo" -> liftIO $ putMVar mvar 3
-                _     -> liftIO $ putMVar mvar 0
+                react $ \case
+                  "foo" -> liftIO $ putMVar mvar 3
+                  _     -> liftIO $ putMVar mvar 0
 
       takeMVar mvar `shouldReturn` 0
