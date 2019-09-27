@@ -68,8 +68,8 @@ spec = do
   describe "Scheduler" $
     it "runs jobs until it has drained its work queue" $ do
       let history = testScheduler $ do
-                      schedule Immediately "foo"
-                      schedule Immediately "bar"
+                      schedule $ Job Immediately "foo"
+                      schedule $ Job Immediately "bar"
 
                       react $ \datum -> do
                         now' <- now
@@ -84,7 +84,7 @@ spec = do
     describe "Immediately" $
       it "runs as soon as the reactor starts" $ do
         let history = testScheduler $ do
-                        schedule Immediately "foobar"
+                        schedule $ Job Immediately "foobar"
 
                         sleepUntil (ScheduledTime (read "1980-01-01 12:34:56"))
 
@@ -98,8 +98,8 @@ spec = do
     describe "At" $
       it "runs at a given time" $ do
         let history = testScheduler $ do
-                        schedule Immediately "immediate"
-                        schedule (At (ScheduledTime (read "1970-01-02 03:04:05"))) "atjob"
+                        schedule $ Job Immediately "immediate"
+                        schedule $ Job (At (ScheduledTime (read "1970-01-02 03:04:05"))) "atjob"
 
                         loggingReactor
 
@@ -111,8 +111,8 @@ spec = do
     describe "After" $
       it "runs after a given delay" $ do
         let history = testScheduler $ do
-                        schedule Immediately "immediate"
-                        schedule (After 30) "afterjob"
+                        schedule $ Job Immediately "immediate"
+                        schedule $ Job (After 30) "afterjob"
 
                         loggingReactor
 
@@ -125,8 +125,8 @@ spec = do
       it "runs every N seconds" $ do
         let history = testScheduler $ do
                         setSchedulerEndTime (ScheduledTime (read "1970-01-01 00:03:00"))
-                        schedule Immediately "immediate"
-                        schedule (Every 15 30) "every"
+                        schedule $ Job Immediately "immediate"
+                        schedule $ Job (Every 15 30) "every"
 
                         loggingReactor
 
@@ -144,7 +144,7 @@ spec = do
       it "runs according to a cron schedule" $ do
         let history = testScheduler $ do
                         setSchedulerEndTime (ScheduledTime (read "1980-01-01 00:00:00"))
-                        schedule (Cron yearly) "cron"
+                        schedule $ Job (Cron yearly) "cron"
 
                         loggingReactor
 
@@ -164,14 +164,14 @@ spec = do
   describe "SingleThreaded" $
     it "allows react to schedule a new job" $ do
       let history = testScheduler $ do
-                      schedule Immediately "foo"
+                      schedule $ Job Immediately "foo"
 
                       react $ \datum -> do
                         now' <- now
                         lift $ tell [ExecutedAction now' datum]
 
                         case datum of
-                          "foo" -> schedule Immediately "bar"
+                          "foo" -> schedule $ Job Immediately "bar"
                           _     -> return ()
 
       history `shouldBe` [
@@ -184,10 +184,10 @@ spec = do
     it "allows react to schedule a new job" $ do
       runChronometerT $
         runScheduler @SingleThreaded $ withPrometheus $ do
-                    schedule Immediately "foo"
+                    schedule $ Job Immediately "foo"
 
                     react $ \case
-                      "foo" -> schedule Immediately "bar"
+                      "foo" -> schedule $ Job Immediately "bar"
                       _     -> return ()
 
       True `shouldBe` True
@@ -196,10 +196,10 @@ spec = do
     it "allows react to schedule a new job" $ do
       runChronometerT $
         runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
-                    schedule Immediately "foo"
+                    schedule (Job Immediately "foo")
 
                     react $ \case
-                      "foo" -> schedule Immediately "bar"
+                      "foo" -> schedule (Job Immediately "bar")
                       _     -> return ()
 
       True `shouldBe` True
