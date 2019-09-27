@@ -3,9 +3,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StrictData                 #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -20,8 +18,7 @@ module Control.Scheduler.Chronometer (
   forkChronometerT
 ) where
 
-import           Control.Concurrent           (ThreadId, forkIO, killThread,
-                                               threadDelay)
+import           Control.Concurrent           (ThreadId, forkIO, threadDelay)
 import           Control.Concurrent.STM.TMVar
 import           Control.Monad.Catch          (MonadCatch (..), MonadMask (..),
                                                MonadThrow (..))
@@ -68,8 +65,7 @@ instance (Monoid w, MonadChronometer m i) => MonadChronometer (WriterT w m) i wh
 
 data TimerResult i = Interrupt i | Expiration
 
-data ChronometerContext i = ChronometerContext {
-  icTimer   :: Maybe ThreadId,
+newtype ChronometerContext i = ChronometerContext {
   icMailbox :: TMVar (TimerResult i)
 }
 
@@ -98,43 +94,28 @@ instance (MonadIO io, MonadUnliftIO io) => MonadChronometer (ChronometerT i io) 
 
     timerResult <- liftIO . atomically . takeTMVar =<< gets icMailbox
 
-    killTimerThread
     action timerResult
 
-startTimerThread :: (MonadIO io, MonadUnliftIO io ) => ScheduledTime -> ChronometerT c io ()
+startTimerThread :: (MonadIO io, MonadUnliftIO io) => ScheduledTime -> ChronometerT c io ()
 startTimerThread wakeupTime =
-  gets icTimer >>= \case
-    Nothing -> do
-      icTimer' <- forkChronometerT doTimer
-      modify (\s -> s { icTimer = Just icTimer' })
-    Just _ ->
-      error "Attempt to start timer thread while one already exists"
+  void $ forkChronometerT $ do
+    mbox <- gets icMailbox
+    -- logDebugNS "ChronometerT" "Preparing to sleep"
+    liftIO $ timerSleep . (wakeupTime `diffTime`) =<< CurrentTime <$> getCurrentTime
+    -- logDebugNS  "ChronometerT" "Wakeup"
+    liftIO $ atomically (putTMVar mbox Expiration)
+    -- logDebugNS "ChronometerT" "Posted expiration"
 
   where
     timerSleep (Delay interval)
       | interval < 0 = return ()
       | otherwise    = threadDelay (1000 * 1000 * round interval)
-    doTimer = do
-      mbox <- gets icMailbox
-      -- logDebugNS "ChronometerT" "Preparing to sleep"
-      liftIO $ timerSleep . (wakeupTime `diffTime`) =<< CurrentTime <$> getCurrentTime
-      -- logDebugNS  "ChronometerT" "Wakeup"
-      liftIO $ atomically (putTMVar mbox Expiration)
-      -- logDebugNS "ChronometerT" "Posted expiration"
-
-killTimerThread :: MonadIO io => ChronometerT c io ()
-killTimerThread =
-  gets icTimer >>= \case
-    Nothing -> return ()
-    Just tid -> do
-      liftIO $ killThread tid
-      modify (\s -> s { icTimer = Nothing })
 
 runChronometerT :: MonadIO io => ChronometerT c io a -> io a
 runChronometerT action = do
   mailbox <- liftIO newEmptyTMVarIO
 
-  evalStateT (unChronometerT action) $ ChronometerContext Nothing mailbox
+  evalStateT (unChronometerT action) $ ChronometerContext mailbox
 
 sendInterrupt :: MonadIO io => c -> ChronometerT c io ()
 sendInterrupt i = do
