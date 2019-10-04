@@ -11,6 +11,7 @@ module Control.Scheduler.Enrichments.Prometheus (
 
 import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.State.Strict (gets)
+import           Control.Monad.Trans.Class  (lift)
 import           Control.Scheduler.Class    (MonadJobs (..))
 import           Control.Scheduler.Type     (Enrichment (..), Iso (..),
                                              Scheduler, stack, unstackM)
@@ -51,6 +52,8 @@ trackQueueDepth = do
   depthGauge <- gets pQueueDepth
   setGauge depthGauge . fromIntegral . length =<< enumerate
 
+instance MonadMonitor m => MonadMonitor (Scheduler (Prometheus r) d m) where
+  doIO = lift . doIO
 
 instance (Monad m, MonadMonitor m, MonadJobs d (Scheduler r d m)) => MonadJobs d (Scheduler (Prometheus r) d m) where
   type ExecutionMonad (Scheduler (Prometheus r) d m) = ExecutionMonad (Scheduler r d m)

@@ -25,14 +25,13 @@ import           Control.Monad.Logger          (MonadLogger, MonadLoggerIO)
 import           Control.Monad.State.Strict    (MonadState, StateT (..), get)
 import           Control.Monad.Trans.Class     (MonadTrans (..))
 import           Control.Scheduler.Chronometer (MonadChronometer (..))
-import           Prometheus                    (MonadMonitor)
 
 newtype Scheduler r d m a = Scheduler { unScheduler :: StateT (r d) m a }
                               deriving (
                                 Functor, Applicative, Monad,
                                 MonadState (r d),
                                 MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans,
-                                MonadLogger, MonadLoggerIO, MonadMonitor
+                                MonadLogger, MonadLoggerIO
                               )
 
 instance MonadChronometer m i => MonadChronometer (Scheduler r d m) i where
