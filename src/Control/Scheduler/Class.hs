@@ -63,9 +63,10 @@ instance (Monad m, MonadChronometer m (Job d), MonadJobs d m) => MonadScheduler 
         Expiration -> do
           now' <- now
 
-          when (now' `isAtOrAfter` runTime) $ do
+          when (now' `isAtOrAfter` runTime) $
             runJob now' job
-            react handler
+
+          react handler
 
         Interrupt job -> do
           schedule job
