@@ -8,6 +8,7 @@ module Control.Scheduler.Time (
   ScheduledTime(..),
   CurrentTime(..),
   addDelay,
+  toµsec,
   addInterval,
   addTime,
   diffTime,
@@ -28,6 +29,9 @@ newtype CurrentTime   = CurrentTime   UTCTime         deriving (Eq, Show)
 
 addDelay :: UTCTime -> Delay -> UTCTime
 addDelay time (Delay delay) = delay `addUTCTime` time
+
+toµsec :: Delay -> Int
+toµsec (Delay ndt) = round $ 1000 * 1000 * ndt
 
 addInterval :: UTCTime -> Interval -> UTCTime
 addInterval time (Interval interval) = realToFrac interval `addUTCTime` time

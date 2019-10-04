@@ -16,6 +16,9 @@ instance Arbitrary UTCTime where
 instance Arbitrary Interval where
   arbitrary = Interval . realToFrac <$> (arbitrary :: Gen Double)
 
+instance Arbitrary NominalDiffTime where
+  arbitrary = realToFrac <$> (arbitrary :: Gen Double)
+
 spec :: Spec
 spec = do
   describe "next" $
@@ -31,6 +34,13 @@ spec = do
       (CurrentTime $ read "1970-01-01 00:00:00") `isAtOrAfter` (ScheduledTime $ read "1969-12-31 23:59:59")
     it "is true for the same time" $
       (CurrentTime $ read "1970-01-01 00:00:00") `isAtOrAfter` (ScheduledTime $ read "1970-01-01 00:00:00")
+
+  describe "toµsec" $
+    it "operates on microsecond granularity" $ property $ \ndt -> do
+      let fromµsec µsecs = realToFrac µsecs / (1000 * 1000)
+          roundtripped   = fromµsec (toµsec (Delay ndt))
+
+      ndt - roundtripped <= 10e-6
 
   where
     referenceNext :: ReferenceTime -> Interval -> UTCTime -> UTCTime

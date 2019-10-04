@@ -35,8 +35,8 @@ import           Control.Monad.State.Strict
 import           Control.Monad.STM
 import           Control.Monad.Trans.Class    (MonadTrans (..))
 import           Control.Monad.Writer.Strict
-import           Control.Scheduler.Time       (CurrentTime (..), Delay (..),
-                                               ScheduledTime, diffTime)
+import           Control.Scheduler.Time       (CurrentTime (..), ScheduledTime,
+                                               diffTime, toµsec)
 import           Data.Text                    (Text, pack)
 import           Data.Time.Clock              (getCurrentTime)
 import           Prometheus                   (MonadMonitor)
@@ -116,9 +116,9 @@ startTimerThread wakeupTime =
     logDebugNS loc ("Posted expiration for " <> tshow wakeupTime)
 
   where
-    timerSleep (Delay interval)
+    timerSleep interval
       | interval < 0 = return ()
-      | otherwise    = threadDelay (1000 * 1000 * round interval)
+      | otherwise    = threadDelay $ toµsec interval
 
 runChronometerT :: MonadIO io => ChronometerT c io a -> io a
 runChronometerT action = do
