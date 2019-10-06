@@ -4,6 +4,7 @@ module Control.Scheduler (
   module Control.Scheduler.Checkpointing,
   module Control.Scheduler.Enrichments.Prometheus,
   module Control.Scheduler.Enrichments.Tracing,
+  module Control.Scheduler.Logging,
   module Control.Scheduler.Schedule,
   module Control.Scheduler.Type,
   module Control.Scheduler.Runner.SingleThreaded
@@ -15,11 +16,15 @@ import           Control.Scheduler.Chronometer            (ChronometerT,
                                                            MonadChronometer (..),
                                                            forkChronometerT,
                                                            runChronometerT,
+                                                           runLoggingChronometerT,
                                                            sendInterrupt)
 import           Control.Scheduler.Class                  (Job (..), MonadJobs,
                                                            MonadScheduler (..))
 import           Control.Scheduler.Enrichments.Prometheus
 import           Control.Scheduler.Enrichments.Tracing
+import           Control.Scheduler.Logging                (LogLevel (..),
+                                                           LogSource (..),
+                                                           Logger (..))
 import           Control.Scheduler.Runner.SingleThreaded
 import           Control.Scheduler.Schedule
 import           Control.Scheduler.Type                   (RunnableScheduler (..),

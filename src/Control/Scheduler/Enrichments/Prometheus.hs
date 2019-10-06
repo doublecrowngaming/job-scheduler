@@ -11,7 +11,6 @@ module Control.Scheduler.Enrichments.Prometheus (
 
 import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.State.Strict (gets)
-import           Control.Monad.Trans.Class  (lift)
 import           Control.Scheduler.Class    (MonadJobs (..))
 import           Control.Scheduler.Type     (Enrichment (..), Iso (..),
                                              Scheduler, stack, unstackM)
@@ -47,15 +46,15 @@ initializeMetrics base =
     jobsDroppedMetric  = counter (Info "scheduler_jobs_deleted"  "Number of jobs removed from the work queue")
     jobsExecutedMetric = counter (Info "scheduler_jobs_executed" "Number of jobs executed")
 
-trackQueueDepth :: (MonadMonitor m, MonadJobs d (Scheduler r d m)) => Scheduler (Prometheus r) d m ()
+trackQueueDepth :: (MonadIO m, MonadJobs d (Scheduler r d m)) => Scheduler (Prometheus r) d m ()
 trackQueueDepth = do
   depthGauge <- gets pQueueDepth
   setGauge depthGauge . fromIntegral . length =<< enumerate
 
-instance MonadMonitor m => MonadMonitor (Scheduler (Prometheus r) d m) where
-  doIO = lift . doIO
+instance MonadIO io => MonadMonitor (Scheduler (Prometheus r) d io) where
+  doIO = liftIO . doIO
 
-instance (Monad m, MonadMonitor m, MonadJobs d (Scheduler r d m)) => MonadJobs d (Scheduler (Prometheus r) d m) where
+instance (Monad m, MonadIO m, MonadJobs d (Scheduler r d m)) => MonadJobs d (Scheduler (Prometheus r) d m) where
   type ExecutionMonad (Scheduler (Prometheus r) d m) = ExecutionMonad (Scheduler r d m)
 
   pushQueue executesAt item = do

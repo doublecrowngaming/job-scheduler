@@ -23,7 +23,6 @@ dependencies:
   - mtl
   - microlens
   - microlens-platform
-  - monad-logger
   - exceptions
   - prometheus-client >= 1.0.0 && < 2
   - stm

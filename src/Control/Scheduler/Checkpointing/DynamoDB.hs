@@ -13,29 +13,30 @@ module Control.Scheduler.Checkpointing.DynamoDB (
   withDynamoDBCheckpointing
 ) where
 
-import           Control.Monad                         (void)
+import           Control.Monad                         (void, when)
 import           Control.Monad.Catch                   (MonadCatch)
 import           Control.Monad.IO.Class                (MonadIO (..))
-import           Control.Monad.Logger
 import           Control.Scheduler.Checkpointing.Class (Checkpointer (..),
                                                         Checkpointing,
                                                         runCheckpointer)
 import           Control.Scheduler.Class               (MonadJobs (..))
+import           Control.Scheduler.Logging             (HasLogger (..),
+                                                        LogLevel (..),
+                                                        Logger (..))
 import           Control.Scheduler.Type                (Scheduler)
 import           Data.Aeson                            (FromJSON (..),
                                                         ToJSON (..),
                                                         eitherDecode, encode)
-import           Data.ByteString.Builder               (toLazyByteString)
 import           Data.ByteString.Lazy                  (fromStrict, toStrict)
 import           Data.Text                             (Text)
 import           Lens.Micro                            (at, (&), (.~), (?~),
                                                         (^.), _Just)
 import           Lens.Micro.Platform                   ()
 import           Network.AWS                           (Credentials (Discover),
-                                                        Env, LogLevel (..),
-                                                        envLogger, newEnv,
+                                                        Env, envLogger, newEnv,
                                                         runAWS, runResourceT,
                                                         send)
+import qualified Network.AWS                           as AWS (LogLevel (..))
 import           Network.AWS.DynamoDB                  (attributeValue, avB,
                                                         avS, getItem, giKey,
                                                         girsItem, piItem,
@@ -69,10 +70,9 @@ dynamoCheckpointer env tableName key = Checkpointer{..}
             Left err  -> error err
             Right val -> return val
 
-withDynamoDBCheckpointing :: (ToJSON d, FromJSON d, Show d, MonadIO io, MonadJobs d (Scheduler r d io), MonadCatch io, MonadLoggerIO io) => Text -> Text -> Scheduler (Checkpointing io r) d io () -> Scheduler r d io ()
-withDynamoDBCheckpointing tableName key actions = do
-  logger <- wrapLogger <$> askLoggerIO
-
+withDynamoDBCheckpointing :: (ToJSON d, FromJSON d, Show d, MonadJobs d (Scheduler r d io), MonadCatch io, HasLogger io, MonadIO io) => Text -> Text -> LogLevel -> Scheduler (Checkpointing io r) d io () -> Scheduler r d io ()
+withDynamoDBCheckpointing tableName key minLogLevel actions = do
+  logger <- convertLogger =<< getLogger
   env <- newEnv Discover
 
   let env' = env & envLogger .~ logger
@@ -80,12 +80,13 @@ withDynamoDBCheckpointing tableName key actions = do
   runCheckpointer (dynamoCheckpointer env' tableName key) actions
 
   where
-    wrapLogger func Error msg = func defaultLoc "Scheduler:Checkpointing:DynamoDB" (convertLevel Error) (builderToLogStr msg)
-    wrapLogger func _ _       = return ()
+    convertLogLevel AWS.Info  = INFO
+    convertLogLevel AWS.Error = ERROR
+    convertLogLevel AWS.Trace = TRACE
+    convertLogLevel AWS.Debug = DEBUG
 
-    convertLevel Info  = LevelInfo
-    convertLevel Error = LevelError
-    convertLevel Debug = LevelDebug
-    convertLevel Trace = LevelOther "Trace"
-
-    builderToLogStr = toLogStr . toLazyByteString
+    convertLogger (Logger logger) =
+      return $ \lvl builder -> do
+        let logLevel = convertLogLevel lvl
+        when (logLevel >= minLogLevel) $
+          logger logLevel "Scheduler:Checkpointing:DynamoDB" builder

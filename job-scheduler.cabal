@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5070bf4454c0f9ce9d654b2ae9d99b99aee6596e0390a7f5998d8b8a61366464
+-- hash: 212af818fdc094d6f0e19a56bfb7317c3610320ee5cc649a48cb35daa7f666a2
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -35,6 +35,7 @@ library
       Control.Scheduler.Checkpointing.Local
       Control.Scheduler.Enrichments.Prometheus
       Control.Scheduler.Enrichments.Tracing
+      Control.Scheduler.Logging
       Paths_job_scheduler
   hs-source-dirs:
       src
@@ -51,7 +52,6 @@ library
     , exceptions
     , microlens
     , microlens-platform
-    , monad-logger
     , mtl
     , pqueue
     , prometheus-client >=1.0.0 && <2
@@ -88,7 +88,6 @@ test-suite spec
     , job-scheduler
     , microlens
     , microlens-platform
-    , monad-logger
     , mtl
     , pqueue
     , prometheus-client >=1.0.0 && <2

@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StrictData                 #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -16,30 +17,29 @@ module Control.Scheduler.Chronometer (
   TimerResult(..),
   ChronometerT,
   runChronometerT,
+  runLoggingChronometerT,
   sendInterrupt,
   forkChronometerT
 ) where
 
-import           Control.Concurrent           (ThreadId, forkIO, myThreadId,
-                                               threadDelay)
+import           Control.Concurrent           (ThreadId, forkIO, threadDelay)
 import           Control.Concurrent.STM.TMVar
 import           Control.Monad.Catch          (MonadCatch (..), MonadMask (..),
                                                MonadThrow (..))
 import           Control.Monad.IO.Class       (MonadIO (..))
 import           Control.Monad.IO.Unlift      (MonadUnliftIO (..),
                                                UnliftIO (..), withRunInIO)
-import           Control.Monad.Logger         (MonadLogger, MonadLoggerIO,
-                                               logDebugNS)
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict
 import           Control.Monad.STM
 import           Control.Monad.Trans.Class    (MonadTrans (..))
 import           Control.Monad.Writer.Strict
+import           Control.Scheduler.Logging    (HasLogger (..), LogLevel (..),
+                                               Logger, nullLogger, slog)
 import           Control.Scheduler.Time       (CurrentTime (..), ScheduledTime,
                                                diffTime, toµsec)
 import           Data.Text                    (Text, pack)
 import           Data.Time.Clock              (getCurrentTime)
-import           Prometheus                   (MonadMonitor)
 
 class Monad m => MonadChronometer m i | m -> i where
   now :: m CurrentTime
@@ -68,16 +68,16 @@ instance (Monoid w, MonadChronometer m i) => MonadChronometer (WriterT w m) i wh
 
 data TimerResult i = Interrupt i | Expiration
 
-newtype ChronometerContext i = ChronometerContext {
-  icMailbox :: TMVar (TimerResult i)
+data ChronometerContext i = ChronometerContext {
+  icMailbox :: TMVar (TimerResult i),
+  icLogger  :: Logger
 }
 
-newtype ChronometerT c io a = ChronometerT { unChronometerT :: StateT (ChronometerContext c) io a }
+newtype ChronometerT c io a = ChronometerT { unChronometerT :: ReaderT (ChronometerContext c) io a }
   deriving (
     Functor, Applicative, Monad, MonadIO,
     MonadThrow, MonadCatch, MonadMask,
-    MonadLogger, MonadLoggerIO, MonadMonitor,
-    MonadState (ChronometerContext c)
+    MonadReader (ChronometerContext c)
   )
 
 instance MonadTrans (ChronometerT c) where
@@ -85,50 +85,54 @@ instance MonadTrans (ChronometerT c) where
 
 instance MonadUnliftIO m => MonadUnliftIO (ChronometerT c m) where
   askUnliftIO = do
-    ctx <- get
+    ctx <- ask
     baseUnliftIO <- lift askUnliftIO
-    return (UnliftIO $ \(ChronometerT actions) -> unliftIO baseUnliftIO $ evalStateT actions ctx)
+    return (UnliftIO $ \(ChronometerT actions) -> unliftIO baseUnliftIO $ runReaderT actions ctx)
 
-instance (MonadIO io, MonadUnliftIO io, MonadLogger io) => MonadChronometer (ChronometerT i io) i where
+instance Monad m => HasLogger (ChronometerT c m) where
+  getLogger = asks icLogger
+
+instance (MonadIO io, MonadUnliftIO io) => MonadChronometer (ChronometerT i io) i where
   now = liftIO (CurrentTime <$> getCurrentTime)
 
   at wakeupTime action = do
     startTimerThread wakeupTime
 
-    timerResult <- liftIO . atomically . takeTMVar =<< gets icMailbox
+    timerResult <- liftIO . atomically . takeTMVar =<< asks icMailbox
 
     action timerResult
 
-startTimerThread :: (MonadIO io, MonadUnliftIO io, MonadLogger io) => ScheduledTime -> ChronometerT c io ()
+startTimerThread :: (MonadIO io, MonadUnliftIO io) => ScheduledTime -> ChronometerT c io ()
 startTimerThread wakeupTime =
   void $ forkChronometerT $ do
-    tid  <- liftIO myThreadId
-    mbox <- gets icMailbox
+    mbox <- asks icMailbox
 
-    let loc = "ChronometerT [" <> tshow tid <> "]"
-
-    logDebugNS loc ("Preparing to sleep until " <> tshow wakeupTime)
+    slog DEBUG loc ("Preparing to sleep until " <> tshow wakeupTime)
     liftIO $ timerSleep . (wakeupTime `diffTime`) =<< CurrentTime <$> getCurrentTime
 
-    logDebugNS loc ("Wakeup for " <> tshow wakeupTime)
+    slog DEBUG loc ("Wakeup for " <> tshow wakeupTime)
     liftIO $ atomically (putTMVar mbox Expiration)
 
-    logDebugNS loc ("Posted expiration for " <> tshow wakeupTime)
+    slog DEBUG loc ("Posted expiration for " <> tshow wakeupTime)
 
   where
+    loc = "ChronometerT"
     timerSleep interval
       | interval < 0 = return ()
       | otherwise    = threadDelay $ toµsec interval
 
 runChronometerT :: MonadIO io => ChronometerT c io a -> io a
-runChronometerT action = do
+runChronometerT = runLoggingChronometerT nullLogger
+
+runLoggingChronometerT :: MonadIO io => Logger -> ChronometerT c io a -> io a
+runLoggingChronometerT logger action = do
   mailbox <- liftIO newEmptyTMVarIO
 
-  evalStateT (unChronometerT action) $ ChronometerContext mailbox
+  runReaderT (unChronometerT action) $ ChronometerContext mailbox logger
 
 sendInterrupt :: MonadIO io => c -> ChronometerT c io ()
 sendInterrupt i = do
-  ChronometerContext{..} <- get
+  ChronometerContext{..} <- ask
 
   liftIO $ atomically . putTMVar icMailbox $ Interrupt i
 

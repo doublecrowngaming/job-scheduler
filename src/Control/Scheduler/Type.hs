@@ -21,7 +21,6 @@ module Control.Scheduler.Type (
 import           Control.Monad.Catch           (MonadCatch (..), MonadMask (..),
                                                 MonadThrow (..))
 import           Control.Monad.IO.Class        (MonadIO (..))
-import           Control.Monad.Logger          (MonadLogger, MonadLoggerIO)
 import           Control.Monad.State.Strict    (MonadState, StateT (..), get)
 import           Control.Monad.Trans.Class     (MonadTrans (..))
 import           Control.Scheduler.Chronometer (MonadChronometer (..))
@@ -30,8 +29,7 @@ newtype Scheduler r d m a = Scheduler { unScheduler :: StateT (r d) m a }
                               deriving (
                                 Functor, Applicative, Monad,
                                 MonadState (r d),
-                                MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans,
-                                MonadLogger, MonadLoggerIO
+                                MonadThrow, MonadCatch, MonadMask, MonadIO, MonadTrans
                               )
 
 instance MonadChronometer m i => MonadChronometer (Scheduler r d m) i where
