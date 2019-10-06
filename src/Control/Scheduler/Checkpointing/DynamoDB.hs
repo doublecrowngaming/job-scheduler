@@ -80,8 +80,8 @@ withDynamoDBCheckpointing tableName key actions = do
   runCheckpointer (dynamoCheckpointer env' tableName key) actions
 
   where
-    wrapLogger _ Trace  = const $ return ()
-    wrapLogger func lvl = func defaultLoc "Scheduler:Checkpointing:DynamoDB" (convertLevel lvl) . builderToLogStr
+    wrapLogger func Error msg = func defaultLoc "Scheduler:Checkpointing:DynamoDB" (convertLevel Error) (builderToLogStr msg)
+    wrapLogger func _ _       = return ()
 
     convertLevel Info  = LevelInfo
     convertLevel Error = LevelError
