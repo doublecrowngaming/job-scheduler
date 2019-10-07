@@ -18,12 +18,9 @@ import           Prometheus
 
 
 data Prometheus r d = Prometheus {
-  unPrometheus  :: r d,
-  pQueueDepth   :: Gauge,
-  pJobsAdded    :: Counter,
-  pJobsPeeked   :: Counter,
-  pJobsDropped  :: Counter,
-  pJobsExecuted :: Counter
+  unPrometheus :: r d,
+  pGauges      :: Vector Label1 Gauge,
+  pCounters    :: Vector Label1 Counter
 }
 
 instance Enrichment (Prometheus r d) (r d) where
@@ -33,23 +30,22 @@ initializeMetrics :: (MonadIO m, MonadJobs d (Scheduler r d m)) => r d -> m (Pro
 initializeMetrics base =
   Prometheus
     <$> pure base
-    <*> register queueDepthMetric
-    <*> register jobsAddedMetric
-    <*> register jobsPeekedMetric
-    <*> register jobsDroppedMetric
-    <*> register jobsExecutedMetric
+    <*> register gauges
+    <*> register counters
 
   where
-    queueDepthMetric   = gauge   (Info "scheduler_queue_depth"   "Scheduler work queue depth")
-    jobsAddedMetric    = counter (Info "scheduler_jobs_added"    "Number of jobs added to work queue")
-    jobsPeekedMetric   = counter (Info "scheduler_jobs_peeked"   "Number of times the head of the queue has been looked at")
-    jobsDroppedMetric  = counter (Info "scheduler_jobs_deleted"  "Number of jobs removed from the work queue")
-    jobsExecutedMetric = counter (Info "scheduler_jobs_executed" "Number of jobs executed")
+    counters           = vector "counter" $ counter (Info "scheduler_operations" "Scheduler operation counters")
+    gauges             = vector "gauge"   $ gauge   (Info "scheduler" "Scheduler gauges")
 
 trackQueueDepth :: (MonadIO m, MonadJobs d (Scheduler r d m)) => Scheduler (Prometheus r) d m ()
 trackQueueDepth = do
-  depthGauge <- gets pQueueDepth
-  setGauge depthGauge . fromIntegral . length =<< enumerate
+  gauges <- gets pGauges
+  depth  <- fromIntegral . length <$> enumerate
+
+  withLabel gauges "queue_depth" (`setGauge` depth)
+
+incCounterL :: (Label l, MonadMonitor m) => l -> Vector l Counter -> m ()
+incCounterL label vec = withLabel vec label incCounter
 
 instance MonadIO io => MonadMonitor (Scheduler (Prometheus r) d io) where
   doIO = liftIO . doIO
@@ -61,22 +57,22 @@ instance (Monad m, MonadIO m, MonadJobs d (Scheduler r d m)) => MonadJobs d (Sch
     stack $ pushQueue executesAt item
 
     trackQueueDepth
-    incCounter =<< gets pJobsAdded
+    incCounterL "jobs_added" =<< gets pCounters
 
   peekQueue = do
     item <- stack peekQueue
-    incCounter =<< gets pJobsPeeked
+    incCounterL "jobs_peeked" =<< gets pCounters
     return item
 
   dropQueue = do
     stack dropQueue
     trackQueueDepth
-    incCounter =<< gets pJobsDropped
+    incCounterL "jobs_deleted" =<< gets pCounters
 
   execute action = do
     stack $ execute action
     trackQueueDepth
-    incCounter =<< gets pJobsExecuted
+    incCounterL "jobs_executed" =<< gets pCounters
 
   enumerate = stack enumerate
 
