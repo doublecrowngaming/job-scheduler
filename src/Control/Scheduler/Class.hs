@@ -39,7 +39,7 @@ class MonadJobs d m | m -> d where
   pushQueue :: ScheduledTime -> Job d -> m ()
   peekQueue :: m (Maybe (ScheduledTime, Job d))
   dropQueue :: m ()
-  execute   :: ExecutionMonad m () -> m ()
+  execute   :: d -> (d -> ExecutionMonad m ()) -> m ()
   enumerate :: m [(ScheduledTime, Job d)]
 
 whenJust :: Applicative f => Maybe a -> (a -> f ()) -> f ()
@@ -74,7 +74,7 @@ instance (Monad m, MonadChronometer m (Job d), MonadJobs d m) => MonadScheduler 
 
     where
       runJob now' Job{..} = do
-        execute (handler jobWorkUnit)
+        execute jobWorkUnit handler
 
         dropQueue
 

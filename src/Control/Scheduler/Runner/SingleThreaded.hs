@@ -52,7 +52,7 @@ instance Monad m => MonadJobs d (Scheduler SingleThreaded d m) where
   dropQueue =
     modify $ \schedulerState@SingleThreaded{..} -> schedulerState { stJobQueue = PQ.deleteMin stJobQueue }
 
-  execute = id
+  execute workUnit action = action workUnit
 
   enumerate = PQ.toList <$> gets stJobQueue
 

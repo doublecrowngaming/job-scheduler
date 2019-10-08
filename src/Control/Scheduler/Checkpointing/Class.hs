@@ -57,11 +57,11 @@ instance (MonadIO m, MonadCatch m, ToJSON d, MonadJobs d (Scheduler r d m)) => M
       dropQueue
       writeCheckpoint
 
-  execute action = do
+  execute workUnit action = do
     Checkpointer{..} <- gets checkpointer
 
     stack $ do
-      execute action
+      execute workUnit action
       writeCheckpoint
 
   enumerate = stack enumerate

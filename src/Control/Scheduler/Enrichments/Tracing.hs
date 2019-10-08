@@ -52,9 +52,9 @@ instance (MonadIO m, MonadJobs d (Scheduler r d m), HasLogger m) => MonadJobs d 
     stack dropQueue
     slog DEBUG "Scheduler:Tracing" "executed dropQueue"
 
-  execute action = do
+  execute workUnit action = do
     slog DEBUG "Scheduler:Tracing" "attempting execute"
-    stack $ execute action
+    stack $ execute workUnit action
     slog DEBUG "Scheduler:Tracing" "execution succeeded"
 
   enumerate = stack enumerate
@@ -90,9 +90,9 @@ instance (MonadIO m, MonadJobs d (Scheduler r d m), HasLogger m, Show d) => Mona
 
     slog DEBUG "Scheduler:DeepTracing" ("dropped " <> tshow item)
 
-  execute action = do
+  execute workUnit action = do
     slog DEBUG "Scheduler:DeepTracing" "attempting to execute associated action"
-    stack $ execute action
+    stack $ execute workUnit action
     slog DEBUG "Scheduler:DeepTracing" "execution succeeded"
 
   enumerate = stack enumerate
@@ -127,8 +127,8 @@ instance (MonadIO m, MonadJobs d (Scheduler r d m), HasLogger m, Show d) => Mona
     stack dropQueue
     logWorkQueue
 
-  execute action = do
-    stack $ execute action
+  execute workUnit action = do
+    stack $ execute workUnit action
     logWorkQueue
 
   enumerate = stack enumerate
