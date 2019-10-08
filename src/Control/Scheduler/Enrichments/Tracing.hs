@@ -91,9 +91,9 @@ instance (MonadIO m, MonadJobs d (Scheduler r d m), HasLogger m, Show d) => Mona
     slog DEBUG "Scheduler:DeepTracing" ("dropped " <> tshow item)
 
   execute workUnit action = do
-    slog DEBUG "Scheduler:DeepTracing" "attempting to execute associated action"
+    slog DEBUG "Scheduler:DeepTracing" ("attempting to execute associated action for " <> tshow workUnit)
     stack $ execute workUnit action
-    slog DEBUG "Scheduler:DeepTracing" "execution succeeded"
+    slog DEBUG "Scheduler:DeepTracing" ("execution succeeded for " <> tshow workUnit)
 
   enumerate = stack enumerate
 
