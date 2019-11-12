@@ -1,6 +1,7 @@
 {-# LANGUAGE ExplicitForAll        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -15,11 +16,13 @@ module Control.Scheduler.Enrichments.Prometheus (
 import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.State.Strict (gets)
 import           Control.Scheduler.Class    (MonadJobs (..))
+import           Control.Scheduler.Time     (ScheduledTime (..))
 import           Control.Scheduler.Type     (Enrichment (..), Iso (..),
                                              Scheduler, stack, unstackM)
 import           Data.Proxy
 import           Data.Time.Clock            (NominalDiffTime, diffUTCTime,
                                              getCurrentTime)
+import           Data.Time.Clock.POSIX      (utcTimeToPOSIXSeconds)
 import           Prometheus
 
 class (Label (PrometheusJobLabel d)) => PrometheusJob d where
@@ -59,6 +62,18 @@ trackQueueDepth = do
 
   withLabel gauges "queue_depth" (`setGauge` depth)
 
+trackNextJobTime :: (MonadIO m, MonadJobs d (Scheduler r d m), PrometheusJob d) => Scheduler (Prometheus r) d m ()
+trackNextJobTime =
+  stack peekQueue >>= \case
+    Nothing -> return ()
+    Just (time, _) -> do
+      gauges <- gets pGauges
+
+      withLabel gauges "next_execution_time" (`setGauge` asDouble time)
+
+  where
+    asDouble (ScheduledTime time) = realToFrac (utcTimeToPOSIXSeconds time)
+
 incCounterL :: (Label l, MonadMonitor m) => l -> Vector l Counter -> m ()
 incCounterL label vec = withLabel vec label incCounter
 
@@ -79,6 +94,7 @@ instance (Monad m, MonadIO m, MonadJobs d (Scheduler r d m), PrometheusJob d) =>
     stack $ pushQueue executesAt item
 
     trackQueueDepth
+    trackNextJobTime
     incCounterL "jobs_added" =<< gets pCounters
 
   peekQueue = do
@@ -88,7 +104,9 @@ instance (Monad m, MonadIO m, MonadJobs d (Scheduler r d m), PrometheusJob d) =>
 
   dropQueue = do
     stack dropQueue
+
     trackQueueDepth
+    trackNextJobTime
     incCounterL "jobs_deleted" =<< gets pCounters
 
   execute workUnit action = do
