@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-12.12
+resolver: lts-14.22
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -41,6 +41,9 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - prometheus-client-1.0.0
+- amazonka-1.6.1@sha256:d863557379350ed6bbb91187abeb8c349a654f60b140d138710486f58ae7c476
+- amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0
+- amazonka-core-1.6.1@sha256:9bc59ce403c6eeba3b3eaf3f10e5f0b6a33b6edbbf8f6de0dd6f4c67b86fa698
 
 # Override default flag values for local packages and extra-deps
 flags: {}

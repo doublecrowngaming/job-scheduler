@@ -1,8 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 212af818fdc094d6f0e19a56bfb7317c3610320ee5cc649a48cb35daa7f666a2
+-- hash: 212c21066973672ef2c869bcca192771b5f921c36eb11495331848e5a18d4f40
 
 name:           job-scheduler
 version:        0.3.0.0
@@ -11,9 +13,9 @@ description:    See README
 homepage:       https://github.com/binarysunrise-io/job-scheduler#readme
 bug-reports:    https://github.com/binarysunrise-io/job-scheduler/issues
 maintainer:     Jesse Kempf
+license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 
 source-repository head
   type: git

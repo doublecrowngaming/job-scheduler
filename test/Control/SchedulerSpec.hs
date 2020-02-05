@@ -3,6 +3,8 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Control.SchedulerSpec (spec) where
@@ -11,14 +13,10 @@ import           Control.Monad.State
 import           Control.Monad.Writer.Strict
 import           Control.Scheduler
 import           Control.Scheduler.Chronometer           (MonadChronometer (..), TimerResult (Expiration))
-import           Control.Scheduler.Class
-import           Control.Scheduler.Runner.SingleThreaded
-import           Control.Scheduler.Schedule
 import           Control.Scheduler.Time                  (CurrentTime (..),
                                                           ScheduledTime (..))
-import           Control.Scheduler.Type
+import           Data.Text
 import           Data.Time.Clock                         (UTCTime)
-import           Prometheus                              (MonadMonitor (..))
 import           System.Cron                             (yearly)
 
 import           Test.Hspec
@@ -186,7 +184,7 @@ spec = do
     it "allows react to schedule a new job" $ do
       runChronometerT $
         runScheduler @SingleThreaded $ withPrometheus $ do
-                    schedule $ Job Immediately "foo"
+                    schedule $ Job Immediately ("foo" :: Text)
 
                     react $ \case
                       "foo" -> schedule $ Job Immediately "bar"
@@ -198,10 +196,15 @@ spec = do
     it "allows react to schedule a new job" $ do
       runChronometerT $
         runScheduler @SingleThreaded $ withLocalCheckpointing "/tmp/job-scheduler-test" $ do
-                    schedule (Job Immediately "foo")
+                    schedule (Job Immediately ("foo" :: Text))
 
                     react $ \case
                       "foo" -> schedule (Job Immediately "bar")
                       _     -> return ()
 
       True `shouldBe` True
+
+instance PrometheusJob Text where
+  type PrometheusJobLabel Text = Text
+  jobLabelFields = const "Text"
+  jobLabel = id
